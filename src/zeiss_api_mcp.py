@@ -16,21 +16,31 @@ Tool surface:
     lookup_function(name)  signature, params, examples, howtos for a function
     lookup_class(name)     class description, method list, cross-refs
     lookup_module(name)    module description + function/class listing
+    dump_module(name)      every function + class in a module, with full
+                           descriptions (use instead of paginating search)
+    list_all_symbols(...)  flat list of every documented symbol, optional
+                           prefix/kind filter — for "what exists" exploration
     get_example(name)      full example doc + all scripts + API calls made
     get_howto(slug)        full how-to guide text (accepts dots or slashes)
-    search(query, kind?)   BM25 search over names + descriptions + docs
-                           (handles CamelCase: "scripted curve check" hits
-                           ScriptedCurveCheck)
+    search(query, kind?, mode?)
+                           hybrid BM25 + dense semantic search, fused with
+                           reciprocal rank fusion. mode="hybrid"|"bm25"|
+                           "semantic" (default hybrid; falls back to bm25
+                           if sentence-transformers isn't installed).
     search_by_tag(tag)     examples by tag (tags are derived from category +
                            name tokens if the source has none)
     list_modules()         all module names with function/class counts
 
-Requires: pip install "mcp[cli]" rank_bm25
+Requires:
+    pip install "mcp[cli]" rank_bm25
+Optional (enables semantic + hybrid search):
+    pip install sentence-transformers numpy
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -306,6 +316,263 @@ class SearchIndex:
 
 
 # =============================================================================
+# Semantic embedding index — optional, gracefully absent
+# =============================================================================
+#
+# BM25 fails exactly when the user doesn't know the vocabulary. Dense
+# embeddings catch those conceptual queries ("how do I move the camera in
+# screen space?" -> finds viewport / projection helpers even though those
+# words aren't in the docstring). We fuse both rankings with RRF so neither
+# source dominates.
+#
+# Storage: one .npz per kind in <cache>/embeddings_<model>_<kind>.npz holding
+# normalized float32 vectors + the keys list + a content signature. We
+# rebuild a kind only if its signature changes, so adding one example doesn't
+# re-encode the entire corpus.
+
+DEFAULT_EMBED_MODEL = "BAAI/bge-small-en-v1.5"
+
+
+def _truncate(s: str | None, n: int) -> str:
+    if not s:
+        return ""
+    return s if len(s) <= n else s[:n]
+
+
+def _embed_text_function(k: str, v: dict) -> str:
+    return " | ".join(p for p in (
+        k,
+        v.get("signature", "") or "",
+        v.get("description", "") or "",
+        _truncate(v.get("extended_description", ""), 1500),
+    ) if p)
+
+
+def _embed_text_class(k: str, v: dict) -> str:
+    return " | ".join(p for p in (
+        k,
+        v.get("description", "") or "",
+        _truncate(v.get("extended_description", ""), 1500),
+    ) if p)
+
+
+def _embed_text_module(k: str, v: dict) -> str:
+    return " | ".join(p for p in (
+        k,
+        _truncate(v.get("description", ""), 2000),
+    ) if p)
+
+
+def _embed_text_example(k: str, v: dict) -> str:
+    return " | ".join(p for p in (
+        v.get("name", k) or k,
+        v.get("category", "") or "",
+        v.get("description", "") or "",
+        _truncate(v.get("documentation", ""), 1500),
+    ) if p)
+
+
+def _embed_text_howto(k: str, v: dict) -> str:
+    return " | ".join(p for p in (
+        v.get("title", k) or k,
+        _truncate(v.get("content", ""), 2500),
+    ) if p)
+
+
+_EMBED_BUILDERS: dict[str, Callable[[str, dict], str]] = {
+    "function": _embed_text_function,
+    "class": _embed_text_class,
+    "module": _embed_text_module,
+    "example": _embed_text_example,
+    "howto": _embed_text_howto,
+}
+
+
+def _safe_model_tag(model_name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", model_name)
+
+
+def _signature(keys: list[str], texts: list[str]) -> str:
+    h = hashlib.sha256()
+    for k, t in zip(keys, texts):
+        h.update(k.encode("utf-8", errors="replace"))
+        h.update(b"\x00")
+        h.update(t.encode("utf-8", errors="replace"))
+        h.update(b"\x01")
+    return h.hexdigest()
+
+
+class SemanticIndex:
+    """Per-kind dense embedding index with on-disk caching.
+
+    Loads sentence-transformers lazily so the rest of the server keeps
+    working when it isn't installed. `available` is False if anything
+    goes wrong; callers should check it before using `query`.
+    """
+
+    def __init__(
+        self,
+        C: "Corpus",
+        model_name: str = DEFAULT_EMBED_MODEL,
+        cache_dir: Path | None = None,
+        rebuild: bool = False,
+    ) -> None:
+        self.available = False
+        self.model_name = model_name
+        self.kinds: dict[str, tuple[list[str], "Any"]] = {}
+        self._model = None
+
+        try:
+            import numpy as np  # noqa: F401
+            from sentence_transformers import SentenceTransformer  # noqa: F401
+        except ImportError as e:
+            print(f"note: semantic search disabled ({e}); install with "
+                  f"`pip install sentence-transformers numpy` to enable.",
+                  file=sys.stderr)
+            return
+
+        try:
+            self._np = __import__("numpy")
+            self._model = SentenceTransformer(model_name)
+        except Exception as e:
+            print(f"warning: failed to load embedding model {model_name!r}: {e}; "
+                  f"continuing with BM25 only.", file=sys.stderr)
+            return
+
+        sources = {
+            "function": C.functions,
+            "class": C.classes,
+            "module": C.modules,
+            "example": C.examples,
+            "howto": C.howtos,
+        }
+        cache_dir = cache_dir or Path(".")
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        tag = _safe_model_tag(model_name)
+
+        for kind, items in sources.items():
+            keys = list(items)
+            if not keys:
+                continue
+            texts = [_EMBED_BUILDERS[kind](k, items[k]) for k in keys]
+            sig = _signature(keys, texts)
+            cache_file = cache_dir / f"embeddings_{tag}_{kind}.npz"
+
+            vecs = None
+            if cache_file.exists() and not rebuild:
+                try:
+                    data = self._np.load(cache_file, allow_pickle=False)
+                    if (str(data["signature"]) == sig
+                            and list(data["keys"]) == keys):
+                        vecs = data["vecs"]
+                except Exception as e:
+                    print(f"note: cache {cache_file.name} unusable ({e}); "
+                          f"recomputing.", file=sys.stderr)
+
+            if vecs is None:
+                print(f"embedding {len(keys)} {kind}s with {model_name}...",
+                      file=sys.stderr)
+                vecs = self._model.encode(
+                    texts,
+                    normalize_embeddings=True,
+                    convert_to_numpy=True,
+                    show_progress_bar=False,
+                    batch_size=32,
+                ).astype(self._np.float32)
+                try:
+                    self._np.savez(
+                        cache_file,
+                        keys=self._np.array(keys),
+                        vecs=vecs,
+                        signature=self._np.array(sig),
+                    )
+                except Exception as e:
+                    print(f"warning: failed to save {cache_file.name}: {e}",
+                          file=sys.stderr)
+
+            self.kinds[kind] = (keys, vecs)
+
+        self.available = bool(self.kinds)
+        if self.available:
+            print(f"semantic index ready ({model_name}): "
+                  f"{', '.join(f'{k}={len(v[0])}' for k, v in self.kinds.items())}",
+                  file=sys.stderr)
+
+    def query(self, kind: str, q: str, limit: int) -> list[str]:
+        if not self.available or kind not in self.kinds or not q.strip():
+            return []
+        keys, vecs = self.kinds[kind]
+        q_vec = self._model.encode(
+            [q], normalize_embeddings=True, convert_to_numpy=True
+        )[0].astype(self._np.float32)
+        scores = vecs @ q_vec  # cosine because both sides are unit-normalized
+        # argpartition for the top-k, then exact-sort just those.
+        n = scores.shape[0]
+        if limit >= n:
+            order = self._np.argsort(-scores)
+        else:
+            top_idx = self._np.argpartition(-scores, limit)[:limit]
+            order = top_idx[self._np.argsort(-scores[top_idx])]
+        return [keys[int(i)] for i in order if scores[int(i)] > 0.0]
+
+
+# =============================================================================
+# Hybrid retrieval: RRF over BM25 + semantic
+# =============================================================================
+#
+# Reciprocal rank fusion: score(d) = sum_r 1 / (k + rank_r(d)). Each ranker
+# contributes independently; a doc that's first in BM25 and absent from
+# semantic still gets a credible score, and vice versa. k=60 is the value
+# from the original Cormack/Clarke/Buettcher paper and is robust enough
+# that we don't bother tuning it.
+
+def _rrf_fuse(rankings: list[list[str]], limit: int, k: int = 60
+              ) -> list[str]:
+    scores: dict[str, float] = {}
+    for ranking in rankings:
+        for rank, doc in enumerate(ranking):
+            scores[doc] = scores.get(doc, 0.0) + 1.0 / (k + rank + 1)
+    return [d for d, _ in sorted(scores.items(),
+                                 key=lambda t: -t[1])[:limit]]
+
+
+class HybridSearchIndex:
+    """Wraps BM25 (precision on known names) and semantic (recall on
+    conceptual queries) with three explicit modes. `hybrid` is the default
+    when both are available; otherwise it transparently degrades to BM25.
+    """
+
+    def __init__(self, bm25: "SearchIndex", semantic: SemanticIndex) -> None:
+        self.bm25 = bm25
+        self.semantic = semantic
+
+    @property
+    def has_semantic(self) -> bool:
+        return self.semantic.available
+
+    def query(
+        self,
+        kind: str,
+        q: str,
+        limit: int,
+        mode: str = "hybrid",
+    ) -> list[str]:
+        if mode == "bm25" or not self.has_semantic:
+            return self.bm25.query(kind, q, limit)
+        if mode == "semantic":
+            return self.semantic.query(kind, q, limit)
+        # hybrid: pull a wider candidate pool from both, fuse by RRF.
+        pool = max(limit * 4, 50)
+        bm = self.bm25.query(kind, q, pool)
+        sem = self.semantic.query(kind, q, pool)
+        if not bm:
+            return sem[:limit]
+        if not sem:
+            return bm[:limit]
+        return _rrf_fuse([bm, sem], limit)
+
+
+# =============================================================================
 # Response shapers (trim verbose fields for typical LLM consumption)
 # =============================================================================
 
@@ -418,15 +685,36 @@ def _howto_view(C: Corpus, slug: str) -> dict:
 # MCP server
 # =============================================================================
 
-def build_server(C: Corpus, transport_security=None) -> FastMCP:
+def build_server(
+    C: Corpus,
+    transport_security=None,
+    embed_model: str | None = DEFAULT_EMBED_MODEL,
+    embed_cache_dir: Path | None = None,
+    rebuild_embeddings: bool = False,
+) -> FastMCP:
     if transport_security is not None:
         mcp = FastMCP("zeiss-inspect-api", transport_security=transport_security)
     else:
         mcp = FastMCP("zeiss-inspect-api")
 
     # Build the BM25 indices once, closed over by the tool handlers.
-    INDEX = SearchIndex(C)
-    print(f"search index built for kinds: {sorted(INDEX.kinds)}", file=sys.stderr)
+    BM25 = SearchIndex(C)
+    print(f"bm25 index built for kinds: {sorted(BM25.kinds)}", file=sys.stderr)
+
+    if embed_model:
+        SEM = SemanticIndex(
+            C,
+            model_name=embed_model,
+            cache_dir=embed_cache_dir,
+            rebuild=rebuild_embeddings,
+        )
+    else:
+        SEM = SemanticIndex.__new__(SemanticIndex)
+        SEM.available = False
+        SEM.kinds = {}
+        SEM.model_name = ""
+        print("semantic search disabled by --no-semantic", file=sys.stderr)
+    INDEX = HybridSearchIndex(BM25, SEM)
 
     @mcp.tool()
     def lookup_function(name: str) -> dict[str, Any]:
@@ -533,21 +821,35 @@ def build_server(C: Corpus, transport_security=None) -> FastMCP:
         ]}
 
     @mcp.tool()
-    def search(query: str, kind: str = "all", limit: int = 25) -> dict[str, Any]:
-        """BM25 search over names, descriptions, and documentation bodies.
+    def search(
+        query: str,
+        kind: str = "all",
+        limit: int = 25,
+        mode: str = "hybrid",
+    ) -> dict[str, Any]:
+        """Hybrid (BM25 + dense semantic) search across the API corpus.
 
         Handles CamelCase: 'scripted curve check' matches ScriptedCurveCheck.
-        Also searches the full example documentation and function
-        extended_description, not just short summaries.
+        Searches names, signatures, full example documentation, and function
+        extended_description — not just short summaries.
 
         kind: "all" | "function" | "class" | "module" | "example" | "howto"
+        mode: "hybrid" (default; reciprocal-rank-fuses BM25 + semantic) |
+              "bm25" (lexical only; best for known FQNs / exact tokens) |
+              "semantic" (dense only; best for paraphrase / concept queries).
+              Falls back to bm25 if sentence-transformers isn't installed.
         """
-        out: dict[str, list] = {}
+        if mode not in ("hybrid", "bm25", "semantic"):
+            return {"error": f"mode must be hybrid|bm25|semantic, got {mode!r}"}
+        out: dict[str, Any] = {
+            "mode": mode if INDEX.has_semantic or mode == "bm25" else "bm25",
+            "semantic_available": INDEX.has_semantic,
+        }
         wanted = (["function", "class", "module", "example", "howto"]
                   if kind == "all" else [kind])
 
         for k in wanted:
-            hits = INDEX.query(k, query, limit)
+            hits = INDEX.query(k, query, limit, mode=mode)
             if k == "function":
                 out["functions"] = [
                     {"fqn": f, "signature": C.functions[f]["signature"],
@@ -600,6 +902,129 @@ def build_server(C: Corpus, transport_security=None) -> FastMCP:
         return {"tag": tag, "count": len(hits), "examples": hits}
 
     @mcp.tool()
+    def dump_module(name: str, include_extended: bool = False) -> dict[str, Any]:
+        """Dump every function and class in a module with full descriptions.
+
+        Use this when you need to see everything a module exposes at once
+        rather than paginating through search hits. Heavier than
+        lookup_module: includes parameter lists, return info, and (optionally)
+        extended descriptions for every member.
+
+        Accepts full fqn (gom.api.imaging) or short name (imaging).
+        """
+        matches = _resolve_module(C, name)
+        if not matches:
+            return {"error": f"no module matching {name!r}"}
+        if len(matches) > 1:
+            return {"candidates": matches}
+
+        fqn = matches[0]
+        mod = C.modules[fqn]
+
+        functions = []
+        for f in mod.get("functions", []):
+            if f not in C.functions:
+                continue
+            fn = C.functions[f]
+            item = {
+                "fqn": f,
+                "signature": fn["signature"],
+                "description": fn["description"],
+                "params": fn["params"],
+                "returns": fn["returns"],
+                "return_type": fn["return_type"],
+            }
+            if include_extended and fn.get("extended_description"):
+                item["extended_description"] = fn["extended_description"]
+            functions.append(item)
+
+        classes = []
+        for c in mod.get("classes", []):
+            if c not in C.classes:
+                continue
+            cls = C.classes[c]
+            item = {
+                "fqn": c,
+                "name": cls["name"],
+                "description": cls["description"],
+                "methods": [
+                    {"fqn": m, "signature": C.functions[m]["signature"],
+                     "description": C.functions[m]["description"]}
+                    for m in cls["methods"] if m in C.functions
+                ],
+            }
+            if include_extended and cls.get("extended_description"):
+                item["extended_description"] = cls["extended_description"]
+            classes.append(item)
+
+        return {
+            "name": fqn,
+            "description": mod["description"],
+            "function_count": len(functions),
+            "class_count": len(classes),
+            "functions": functions,
+            "classes": classes,
+        }
+
+    @mcp.tool()
+    def list_all_symbols(
+        prefix: str = "",
+        kind: str = "all",
+        limit: int = 1000,
+    ) -> dict[str, Any]:
+        """Flat enumeration of every documented symbol (name + one-liner).
+
+        Use this for "what exists?" exploration when you don't have a query
+        good enough for search. Optional `prefix` is a case-insensitive
+        substring filter applied to the name/fqn — pass "imaging" to see
+        every symbol whose fqn or name contains "imaging".
+
+        kind: "all" | "function" | "class" | "module" | "example" | "howto"
+        limit: per-kind cap (default 1000; bump for large dumps).
+        """
+        pl = (prefix or "").lower()
+        kinds = (["function", "class", "module", "example", "howto"]
+                 if kind == "all" else [kind])
+        out: dict[str, Any] = {"prefix": prefix, "kind": kind}
+
+        if "function" in kinds:
+            hits = sorted(f for f in C.functions if pl in f.lower())[:limit]
+            out["functions"] = [
+                {"fqn": f, "description": C.functions[f]["description"]}
+                for f in hits
+            ]
+        if "class" in kinds:
+            hits = sorted(c for c in C.classes if pl in c.lower())[:limit]
+            out["classes"] = [
+                {"fqn": c, "description": C.classes[c]["description"]}
+                for c in hits
+            ]
+        if "module" in kinds:
+            hits = sorted(m for m in C.modules if pl in m.lower())[:limit]
+            out["modules"] = [
+                {"name": m, "description": C.modules[m]["description"][:200]}
+                for m in hits
+            ]
+        if "example" in kinds:
+            hits = sorted(e for e in C.examples if pl in e.lower())[:limit]
+            out["examples"] = [
+                {"name": e, "category": C.examples[e]["category"],
+                 "description": C.examples[e]["description"]}
+                for e in hits
+            ]
+        if "howto" in kinds:
+            hits = sorted(s for s in C.howtos if pl in s.lower())[:limit]
+            out["howtos"] = [
+                {"slug": s, "title": C.howtos[s]["title"]}
+                for s in hits
+            ]
+
+        out["total"] = sum(
+            len(v) for k, v in out.items() if isinstance(v, list)
+        )
+        return out
+
+    @mcp.tool()
     def list_modules() -> dict[str, Any]:
         """List all documented modules with function/class counts."""
         return {
@@ -635,6 +1060,21 @@ def main() -> int:
     ap.add_argument("--no-security", action="store_true",
                     help="disable DNS-rebinding protection entirely "
                          "(only do this on a trusted network).")
+    ap.add_argument("--embedding-model", default=DEFAULT_EMBED_MODEL,
+                    metavar="NAME",
+                    help=f"sentence-transformers model for semantic search "
+                         f"(default: {DEFAULT_EMBED_MODEL}). bge-small is ~33M "
+                         f"params and runs comfortably on CPU; switch to "
+                         f"nomic-ai/nomic-embed-text-v1.5 for higher quality "
+                         f"if you have GPU headroom.")
+    ap.add_argument("--embedding-cache-dir", type=Path, default=None,
+                    metavar="DIR",
+                    help="where to store cached embedding vectors "
+                         "(default: <corpus-dir>/.embeddings).")
+    ap.add_argument("--rebuild-embeddings", action="store_true",
+                    help="ignore cached vectors and recompute everything.")
+    ap.add_argument("--no-semantic", action="store_true",
+                    help="disable dense semantic search; serve BM25 only.")
     args = ap.parse_args()
 
     if not args.corpus.is_dir():
@@ -660,7 +1100,14 @@ def main() -> int:
             if args.allow_host:
                 print(f"trusted hosts: {args.allow_host}", file=sys.stderr)
 
-    mcp = build_server(C, transport_security=security)
+    cache_dir = args.embedding_cache_dir or (args.corpus / ".embeddings")
+    mcp = build_server(
+        C,
+        transport_security=security,
+        embed_model=None if args.no_semantic else args.embedding_model,
+        embed_cache_dir=cache_dir,
+        rebuild_embeddings=args.rebuild_embeddings,
+    )
 
     if args.http:
         host, _, port = args.http.partition(":")
