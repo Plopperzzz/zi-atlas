@@ -417,7 +417,28 @@ def _merge_params(sig_params: list[dict], field_params: list[dict]) -> list[dict
     return merged
 
 
+# Populated per-build from the H2/H3/H4 module-style headers in the doc pages.
+# Longest-prefix match against this set is what lets `_module_of` resolve
+# submodule names like `gom.api.extensions.actuals` instead of collapsing them
+# into the nearest top-level module.
+_KNOWN_MODULES: set[str] = set()
+
+
 def _module_of(fqn: str) -> str:
+    """Return the module part of a fully-qualified name.
+
+    Prefers the longest prefix found in `_KNOWN_MODULES` so submodules (e.g.
+    `gom.api.extensions.actuals`) resolve to themselves instead of their
+    parent. Falls back to a depth-based heuristic for FQNs that don't appear
+    under a scanned module header (e.g. `gom.Resource`, which is introduced
+    via an `eval-rst` block rather than a module-style section heading).
+    """
+    if _KNOWN_MODULES:
+        parts = fqn.split(".")
+        for n in range(len(parts) - 1, 0, -1):
+            candidate = ".".join(parts[:n])
+            if candidate in _KNOWN_MODULES:
+                return candidate
     if fqn.startswith("gom.api."):
         return "gom.api." + fqn[len("gom.api."):].split(".", 1)[0]
     if fqn.startswith("gom."):
@@ -426,15 +447,22 @@ def _module_of(fqn: str) -> str:
 
 
 def _extract_class_fqn(fqn: str, module: str) -> str:
-    """Return the class FQN between module and leaf (empty if no class segment)."""
-    mod_depth = len(module.split("."))
-    parts = fqn.split(".")
-    if len(parts) <= mod_depth + 1:
-        return ""  # fqn IS the module.function
-    between = parts[mod_depth:-1]
-    if between and between[0][:1].isupper():
-        return ".".join(parts[:mod_depth] + between)
-    return ""
+    """Return the class FQN between module and leaf (empty if no class segment).
+
+    Works for both `module.Class.method` and `module.Class.Nested.method` —
+    the class FQN is everything from the module boundary up to (but not
+    including) the leaf, provided the first segment after the module is
+    CapCase. If the first segment is lowercase, the leaf is a module-level
+    function.
+    """
+    if not fqn.startswith(module + "."):
+        return ""
+    remainder = fqn[len(module) + 1:].split(".")
+    if len(remainder) <= 1:
+        return ""  # fqn IS module.function
+    if not remainder[0][:1].isupper():
+        return ""
+    return module + "." + ".".join(remainder[:-1])
 
 
 # =============================================================================
@@ -615,14 +643,15 @@ def _parse_rst_block(content: str, source_file: str,
 # H3/H4 class scanner (catches classes even without fenced methods)
 # =============================================================================
 
-# Class header whose final segment is CapCase (= class).
-# Handles gom.api.x.Class AND gom.Class. Accepts H3 or H4 depth:
-# - 2025 style: ### gom.api.x.ClassName  (top-level)
-# - 2026 style: #### gom.api.x.ClassName (nested inside a ### module section,
-#   e.g. ### gom.api.extensions.inspections contains
-#        #### gom.api.extensions.inspections.ScriptedInspection)
+# Class header whose final segment is CapCase (= class or nested class).
+# Handles gom.api.x.Class, gom.api.x.y.Class (H4 under submodule), and
+# nested classes such as ScriptedCanvas.Event (H5 under H4 class). Accepts
+# H3-H5 depth and one or more trailing CapCase segments:
+# - 2025 style:   ### gom.api.x.ClassName
+# - 2026 style:  #### gom.api.x.y.ClassName  (inside submodule)
+# - nested:     ##### gom.api.x.y.ClassName.Event
 CLASS_H3_RE = re.compile(
-    r"^(?P<depth>#{3,4})\s+(?P<fqn>gom(?:\.[a-z_][\w]*)+\.[A-Z][\w]*)\s*$",
+    r"^(?P<depth>#{3,5})\s+(?P<fqn>gom(?:\.[a-z_][a-z0-9_]*)+(?:\.[A-Z][\w]*)+)\s*$",
     re.MULTILINE,
 )
 
@@ -660,21 +689,63 @@ def scan_h3_classes(text: str, source_file: str) -> dict[str, ApiClass]:
 
 
 # =============================================================================
-# Module description extraction (H2)
+# Module description extraction (H2-H4, matches whole-lowercase gom.* paths)
 # =============================================================================
 
-MODULE_H2_RE = re.compile(
-    r"^##\s+(?P<n>gom\.[\w\.]+)\s*\n+(?P<body>.+?)(?=\n##\s|\Z)",
-    re.MULTILINE | re.DOTALL,
+# Matches section headers for modules and submodules — all path segments
+# after `gom.` are lowercase (Python convention), which is what distinguishes
+# these from class headers that end in CapCase segments.
+MODULE_HEADER_RE = re.compile(
+    r"^(?P<depth>#{2,4})\s+(?P<n>gom(?:\.[a-z_][a-z0-9_]*)+)\s*$",
+    re.MULTILINE,
 )
 
 
-def parse_module_descriptions(text: str) -> dict[str, str]:
-    out: dict[str, str] = {}
-    for m in MODULE_H2_RE.finditer(text):
+def _scan_known_modules(text: str) -> set[str]:
+    """Collect module/submodule names from section headers in one doc page.
+
+    H2 `## gom.x` is always a module. H3 `### gom.x.y` with a lowercase final
+    segment is ambiguous — it could be a submodule (e.g.
+    `gom.api.extensions.actuals`) or a module-level function (e.g.
+    `gom.api.addons.get_addon`). We disambiguate by requiring at least one H4
+    child heading whose FQN extends the H3's path; that's the structural
+    signature of a submodule. H4+ lowercase headers are always functions.
+    """
+    out: set[str] = set()
+    matches = list(MODULE_HEADER_RE.finditer(text))
+    for i, m in enumerate(matches):
+        depth = len(m.group("depth"))
         name = m.group("n").strip()
-        body = m.group("body")
-        stop = re.search(r"^(?:###|####|```)", body, re.MULTILINE)
+        if depth == 2:
+            out.add(name)
+            continue
+        if depth >= 4:
+            continue
+        body_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        body = text[m.end():body_end]
+        if re.search(rf"^####\s+{re.escape(name)}\.", body, re.MULTILINE):
+            out.add(name)
+    return out
+
+
+def parse_module_descriptions(text: str) -> dict[str, str]:
+    """Extract per-module prose that precedes the first subheading/fence.
+
+    Only headers that pass `_scan_known_modules` get a description; this
+    keeps function-definition headers (which share the `### gom.x.y` shape)
+    from being mistakenly treated as modules.
+    """
+    valid = _scan_known_modules(text)
+    out: dict[str, str] = {}
+    matches = list(MODULE_HEADER_RE.finditer(text))
+    for i, m in enumerate(matches):
+        name = m.group("n").strip()
+        if name not in valid:
+            continue
+        body_start = m.end()
+        body_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        body = text[body_start:body_end]
+        stop = re.search(r"^(?:#{2,6}\s|```)", body, re.MULTILINE)
         desc = body[:stop.start() if stop else len(body)].strip()
         out[name] = desc
     return out
@@ -692,17 +763,27 @@ def collect_api(api_repo: Path) -> tuple[
         print(f"  warning: {api_dir} not found", file=sys.stderr)
         return {}, {}, {}
 
+    # Pre-pass: discover every module/submodule header across all doc pages so
+    # subsequent FQN resolution can prefer longest-prefix matches. Without
+    # this, a method like `gom.api.extensions.sequence.ScriptedSequenceElement.create`
+    # gets its module resolved to `gom.api.extensions` and then its class_fqn
+    # extraction bails out because the first between-segment is lowercase.
+    _KNOWN_MODULES.clear()
+    docs: list[tuple[Path, str, str]] = []
+    for md in sorted(api_dir.glob("*.md")):
+        text = _normalize(md.read_text(encoding="utf-8"))
+        rel = str(md.relative_to(api_repo))
+        docs.append((md, text, rel))
+        _KNOWN_MODULES.update(_scan_known_modules(text))
+
     functions: dict[str, ApiFunction] = {}
     classes: dict[str, ApiClass] = {}
     module_descs: dict[str, str] = {}
 
-    for md in sorted(api_dir.glob("*.md")):
-        text = _normalize(md.read_text(encoding="utf-8"))
-        rel = str(md.relative_to(api_repo))
-
+    for md, text, rel in docs:
         myst_fns = parse_myst_python_api(text, rel)
         rst_fns = parse_eval_rst_api(text, rel, classes)  # populates classes for RST case
-        h3_classes = scan_h3_classes(text, rel)            # MyST H3 classes
+        h3_classes = scan_h3_classes(text, rel)            # MyST H3-H5 classes incl. nested
 
         # H3 classes are canonical (have descriptions); only add if not already set
         for fqn, cls in h3_classes.items():
@@ -724,6 +805,19 @@ def collect_api(api_repo: Path) -> tuple[
 
         module_descs.update(parse_module_descriptions(text))
 
+    # Synthesize stub class entries for any class_fqn referenced by a method
+    # but never registered from a section header. This catches docs like the
+    # `views` submodule where `ScriptedEditor` and `ScriptedView` have no
+    # explicit class heading of their own — only their methods appear.
+    for fn in functions.values():
+        if fn.class_fqn and fn.class_fqn not in classes:
+            classes[fn.class_fqn] = ApiClass(
+                fqn=fn.class_fqn,
+                module=_module_of(fn.class_fqn + ".__placeholder"),
+                name=fn.class_fqn.rsplit(".", 1)[-1],
+                source_file=fn.source_file,
+            )
+
     # Wire class methods
     for fn in functions.values():
         if fn.class_fqn and fn.class_fqn in classes:
@@ -731,8 +825,12 @@ def collect_api(api_repo: Path) -> tuple[
     for cls in classes.values():
         cls.methods.sort()
 
-    # Build ModuleMeta index
-    modules: dict[str, ModuleMeta] = {}
+    # Build ModuleMeta index. Seed with every scanned module header so
+    # submodules like `gom.api.extensions.actuals` always show up as
+    # navigable units even when empty.
+    modules: dict[str, ModuleMeta] = {
+        name: ModuleMeta(name=name) for name in _KNOWN_MODULES
+    }
     for fqn, fn in functions.items():
         mm = modules.setdefault(fn.module, ModuleMeta(name=fn.module))
         if fn.class_fqn:
@@ -787,14 +885,39 @@ def parse_howto(md_path: Path, repo_root: Path, howtos_root: Path) -> HowTo:
 
 def collect_howtos(api_repo: Path) -> dict[str, HowTo]:
     howtos_dir = api_repo / "doc" / "howtos"
-    if not howtos_dir.is_dir():
-        return {}
     out: dict[str, HowTo] = {}
-    for md in sorted(howtos_dir.rglob("*.md")):
-        if "assets" in md.parts:
-            continue
-        ht = parse_howto(md, api_repo, howtos_dir)
-        out[ht.slug] = ht
+    if howtos_dir.is_dir():
+        for md in sorted(howtos_dir.rglob("*.md")):
+            if "assets" in md.parts:
+                continue
+            ht = parse_howto(md, api_repo, howtos_dir)
+            out[ht.slug] = ht
+
+    # The deprecated scripted_elements_api.md page doesn't match any of the
+    # API parser formats (no {py:function}/{eval-rst} fences, no H2 gom.*
+    # module headings — it documents user-defined callbacks like `dialog()`
+    # and `calculation()`). Surface it as a howto so the content is
+    # retrievable instead of silently dropped.
+    legacy = api_repo / "doc" / "python_api" / "scripted_elements_api.md"
+    if legacy.is_file():
+        text = _normalize(legacy.read_text(encoding="utf-8"))
+        title_m = re.search(r"^#\s+(.+?)$", text, re.MULTILINE)
+        title = title_m.group(1).strip() if title_m else legacy.stem
+        mentions = re.findall(r"\bgom\.(?:api|Resource|app|script|interactive)[\w\.]*", text)
+        api_mentions = sorted({m.rstrip(".,;:)]}'\"`") for m in mentions})
+        linked = sorted({
+            Path(m.group(1)).stem
+            for m in re.finditer(r"\]\(([^)]+?\.md)[^)]*\)", text)
+        })
+        slug = "scripted_elements_api"
+        out[slug] = HowTo(
+            slug=slug, title=title,
+            source_file=str(legacy.relative_to(api_repo)),
+            content=text,
+            api_mentions=api_mentions,
+            linked_howtos=linked,
+        )
+
     return out
 
 
