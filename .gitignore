@@ -1,3 +1,8 @@
 # ignore corpus and repo directories
 corpus
 repos
+
+# python
+__pycache__/
+*.pyc
+

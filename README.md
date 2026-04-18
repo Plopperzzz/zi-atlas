@@ -117,7 +117,23 @@ re-encoded when its content signature changes.
 | `--embedding-model NAME` | `BAAI/bge-small-en-v1.5` | any sentence-transformers model id. `bge-small` (~33M params, 384-dim) runs fine on CPU; switch to `nomic-ai/nomic-embed-text-v1.5` for higher quality if you have GPU headroom. |
 | `--embedding-cache-dir DIR` | `<corpus>/.embeddings` | where to store cached `.npz` vectors |
 | `--rebuild-embeddings` | off | ignore cache and recompute everything |
+| `--embedding-device DEV` | `auto` | `auto` \| `cpu` \| `cuda` \| `cuda:N` \| `mps`. Auto probes the GPU's compute capability and falls back to CPU if it isn't supported by the installed PyTorch wheel. |
 | `--no-semantic` | off | disable dense search; serve BM25 only |
+
+### "CUDA error: no kernel image is available for execution on the device"
+
+The default PyTorch wheel only supports modern CUDA archs (sm_70+). Older
+cards — Tesla M40 (sm_52), Tesla K80 (sm_37), GTX 9xx (sm_52), etc. —
+report `cuda.is_available() == True` but blow up on the first kernel
+launch. With `--embedding-device auto` the server detects this up front
+and switches to CPU. If you want to force CPU explicitly:
+
+```bash
+python src/zeiss_api_mcp.py --corpus ./corpus --embedding-device cpu
+```
+
+For the M40 specifically, encoding the full corpus on CPU takes ~30-60s
+on first run; subsequent starts use the cache and are instant.
 
 ## Tool surface
 

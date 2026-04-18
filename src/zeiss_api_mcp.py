@@ -416,6 +416,7 @@ class SemanticIndex:
         model_name: str = DEFAULT_EMBED_MODEL,
         cache_dir: Path | None = None,
         rebuild: bool = False,
+        device: str | None = None,
     ) -> None:
         self.available = False
         self.model_name = model_name
@@ -431,13 +432,24 @@ class SemanticIndex:
                   file=sys.stderr)
             return
 
+        self._np = __import__("numpy")
+        self._SentenceTransformer = SentenceTransformer
+
+        # device='auto' (the default) lets sentence-transformers pick CUDA if
+        # torch.cuda.is_available(). That heuristic is wrong on machines whose
+        # GPU is too old for the installed PyTorch wheel (e.g. a Tesla M40 at
+        # sm_52 against a wheel built for sm_70+); torch reports the device
+        # available but the first kernel launch fails. We resolve "auto" to a
+        # safer choice up front and still catch any encode-time failure with
+        # a CPU retry below.
+        resolved = self._resolve_device(device)
         try:
-            self._np = __import__("numpy")
-            self._model = SentenceTransformer(model_name)
+            self._model = SentenceTransformer(model_name, device=resolved)
         except Exception as e:
-            print(f"warning: failed to load embedding model {model_name!r}: {e}; "
-                  f"continuing with BM25 only.", file=sys.stderr)
+            print(f"warning: failed to load embedding model {model_name!r} on "
+                  f"{resolved}: {e}; continuing with BM25 only.", file=sys.stderr)
             return
+        self._device = resolved
 
         sources = {
             "function": C.functions,
@@ -470,15 +482,11 @@ class SemanticIndex:
                           f"recomputing.", file=sys.stderr)
 
             if vecs is None:
-                print(f"embedding {len(keys)} {kind}s with {model_name}...",
-                      file=sys.stderr)
-                vecs = self._model.encode(
-                    texts,
-                    normalize_embeddings=True,
-                    convert_to_numpy=True,
-                    show_progress_bar=False,
-                    batch_size=32,
-                ).astype(self._np.float32)
+                print(f"embedding {len(keys)} {kind}s with {model_name} "
+                      f"on {self._device}...", file=sys.stderr)
+                vecs = self._encode_with_fallback(texts)
+                if vecs is None:
+                    return  # already logged; fall back to BM25-only
                 try:
                     self._np.savez(
                         cache_file,
@@ -494,9 +502,82 @@ class SemanticIndex:
 
         self.available = bool(self.kinds)
         if self.available:
-            print(f"semantic index ready ({model_name}): "
+            print(f"semantic index ready ({model_name} on {self._device}): "
                   f"{', '.join(f'{k}={len(v[0])}' for k, v in self.kinds.items())}",
                   file=sys.stderr)
+
+    @staticmethod
+    def _resolve_device(device: str | None) -> str:
+        """Pick a device for SentenceTransformer.
+
+        Explicit values ('cpu', 'cuda', 'cuda:1', 'mps', ...) pass through.
+        'auto' / None probes torch: prefer CUDA only if the device's compute
+        capability is actually supported by the installed wheel; otherwise
+        fall back to CPU and log why.
+        """
+        if device and device != "auto":
+            return device
+        try:
+            import torch
+        except Exception:
+            return "cpu"
+        if not torch.cuda.is_available():
+            return "cpu"
+        try:
+            major, minor = torch.cuda.get_device_capability(0)
+            supported = set(torch.cuda.get_arch_list() or [])
+            wanted = f"sm_{major}{minor}"
+            if supported and wanted not in supported:
+                name = torch.cuda.get_device_name(0)
+                print(f"note: {name} ({wanted}) is not in this PyTorch's "
+                      f"supported archs ({sorted(supported)}); using CPU for "
+                      f"embeddings. Pass --embedding-device cuda to override.",
+                      file=sys.stderr)
+                return "cpu"
+        except Exception:
+            return "cpu"
+        return "cuda"
+
+    def _encode_with_fallback(self, texts: list[str]):
+        """Encode `texts`, retrying on CPU if a CUDA error trips the GPU.
+
+        Some installs report `cuda.is_available()` true but explode at the
+        first kernel launch (sm mismatch, bad driver, OOM during init). We
+        catch the first failure, rebuild the model on CPU, and try again so
+        the server keeps working without the user having to restart.
+        """
+        try:
+            return self._model.encode(
+                texts,
+                normalize_embeddings=True,
+                convert_to_numpy=True,
+                show_progress_bar=False,
+                batch_size=32,
+            ).astype(self._np.float32)
+        except Exception as e:
+            if self._device == "cpu":
+                print(f"warning: encode failed on CPU ({e}); "
+                      f"semantic search disabled.", file=sys.stderr)
+                return None
+            print(f"warning: encode failed on {self._device} ({e}); "
+                  f"retrying on CPU. Pass --embedding-device cpu to skip "
+                  f"this probe next time.", file=sys.stderr)
+            try:
+                self._model = self._SentenceTransformer(
+                    self.model_name, device="cpu"
+                )
+                self._device = "cpu"
+                return self._model.encode(
+                    texts,
+                    normalize_embeddings=True,
+                    convert_to_numpy=True,
+                    show_progress_bar=False,
+                    batch_size=32,
+                ).astype(self._np.float32)
+            except Exception as e2:
+                print(f"warning: CPU retry also failed ({e2}); "
+                      f"semantic search disabled.", file=sys.stderr)
+                return None
 
     def query(self, kind: str, q: str, limit: int) -> list[str]:
         if not self.available or kind not in self.kinds or not q.strip():
@@ -691,6 +772,7 @@ def build_server(
     embed_model: str | None = DEFAULT_EMBED_MODEL,
     embed_cache_dir: Path | None = None,
     rebuild_embeddings: bool = False,
+    embed_device: str | None = None,
 ) -> FastMCP:
     if transport_security is not None:
         mcp = FastMCP("zeiss-inspect-api", transport_security=transport_security)
@@ -707,6 +789,7 @@ def build_server(
             model_name=embed_model,
             cache_dir=embed_cache_dir,
             rebuild=rebuild_embeddings,
+            device=embed_device,
         )
     else:
         SEM = SemanticIndex.__new__(SemanticIndex)
@@ -1073,6 +1156,12 @@ def main() -> int:
                          "(default: <corpus-dir>/.embeddings).")
     ap.add_argument("--rebuild-embeddings", action="store_true",
                     help="ignore cached vectors and recompute everything.")
+    ap.add_argument("--embedding-device", default="auto", metavar="DEV",
+                    help="device for the embedding model: auto|cpu|cuda|cuda:N|"
+                         "mps (default: auto). 'auto' probes the GPU's compute "
+                         "capability against the installed PyTorch wheel and "
+                         "falls back to CPU if they don't match (e.g. Tesla "
+                         "M40 sm_52 against a wheel built for sm_70+).")
     ap.add_argument("--no-semantic", action="store_true",
                     help="disable dense semantic search; serve BM25 only.")
     args = ap.parse_args()
@@ -1107,6 +1196,7 @@ def main() -> int:
         embed_model=None if args.no_semantic else args.embedding_model,
         embed_cache_dir=cache_dir,
         rebuild_embeddings=args.rebuild_embeddings,
+        embed_device=args.embedding_device,
     )
 
     if args.http:
