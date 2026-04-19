@@ -104,6 +104,10 @@ class Corpus:
     # derived:
     # normalized howto slug ("foo.bar" / "foo/bar" both -> "foo.bar") -> real slug
     howto_slug_map: dict[str, str] = field(default_factory=dict)
+    # Optional side index of gom.* tokens referenced by example/howto source
+    # but not present in the documented API (see build_corpus.build_referenced_symbols).
+    # Absent on corpora built before that index existed — always guard with .get().
+    referenced_symbols: dict[str, dict] = field(default_factory=dict)
 
     @classmethod
     def load(cls, corpus_dir: Path) -> "Corpus":
@@ -121,6 +125,13 @@ class Corpus:
             examples=_j("examples.json"),
             howtos=_j("howtos.json"),
         )
+
+        # Optional: load the referenced-symbols side index if the corpus
+        # has one. Missing file is not an error — older corpora predate this.
+        ref_path = corpus_dir / "referenced_symbols.json"
+        if ref_path.exists():
+            ref = json.loads(ref_path.read_text(encoding="utf-8"))
+            C.referenced_symbols = ref.get("symbols", {}) or {}
 
         # --- Fix #2: populate tags on examples ---
         # Upstream has them empty, so search_by_tag is useless without this.
@@ -235,6 +246,27 @@ def _resolve_module(C: Corpus, name: str) -> list[str]:
         return [name]
     matches = [fqn for fqn in C.modules if fqn == name or fqn.endswith("." + name)]
     return sorted(matches)
+
+
+def _referenced_but_undocumented(C: Corpus, name: str) -> dict[str, Any] | None:
+    """Return a structured "not_documented" response for tokens that show up in
+    example/howto source but aren't part of the documented API — or None.
+
+    Prevents the common failure mode where the model lookups a symbol
+    discovered via `search` that lives in the examples repo (e.g.
+    `gom.script.sys.close_project`) and, on the empty miss, burns its
+    tool budget retrying.
+    """
+    entry = C.referenced_symbols.get(name)
+    if entry is None or entry.get("status") != "mentioned_only":
+        return None
+    return {
+        "status": "not_documented",
+        "name": name,
+        "note": ("This symbol appears in example/howto source but is not "
+                 "part of the documented API. Do not attempt further lookups."),
+        "mentioned_in": entry.get("mentioned_in", []),
+    }
 
 
 # =============================================================================
@@ -831,6 +863,9 @@ def build_server(
         """
         matches = _resolve_function(C, name)
         if not matches:
+            undoc = _referenced_but_undocumented(C, name)
+            if undoc is not None:
+                return undoc
             return {"error": f"no function matching {name!r}"}
         if len(matches) > 1:
             return {"candidates": [
@@ -870,6 +905,9 @@ def build_server(
         """
         matches = _resolve_class(C, name)
         if not matches:
+            undoc = _referenced_but_undocumented(C, name)
+            if undoc is not None:
+                return undoc
             return {"error": f"no class matching {name!r}"}
         if len(matches) > 1:
             return {"candidates": [

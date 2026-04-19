@@ -1125,6 +1125,156 @@ def crosslink(api: dict[str, ApiFunction], classes: dict[str, ApiClass],
 
 
 # =============================================================================
+# Referenced-symbol index
+# =============================================================================
+
+REFERENCED_SYMBOL_RE = re.compile(r"gom\.[a-zA-Z_][a-zA-Z0-9_.]*")
+HOWTO_CODE_FENCE_RE = re.compile(
+    r"```(?:[a-zA-Z0-9_+-]*)\s*\n(?P<code>.*?)^```",
+    re.MULTILINE | re.DOTALL,
+)
+
+
+def _load_documented_symbols(corpus_dir: Path) -> set[str]:
+    """Collect fqns of every documented function and class from the corpus."""
+    documented: set[str] = set()
+    for fname in ("api_functions.json", "api_classes.json"):
+        p = corpus_dir / fname
+        if not p.is_file():
+            continue
+        data = json.loads(p.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            documented.update(data.keys())
+        elif isinstance(data, list):
+            for item in data:
+                fqn = item.get("fqn") if isinstance(item, dict) else None
+                if fqn:
+                    documented.add(fqn)
+    return documented
+
+
+def _extract_referenced_tokens(source: str) -> set[str]:
+    """Return the set of `gom.*` tokens in `source`, trailing dots stripped."""
+    return {m.rstrip(".") for m in REFERENCED_SYMBOL_RE.findall(source) if m}
+
+
+def build_referenced_symbols(corpus_dir: Path,
+                              repos_dir: Path,
+                              api_repo: Path | None = None,
+                              ex_repo: Path | None = None) -> dict:
+    """Emit `corpus/referenced_symbols.json` alongside the other corpus files.
+
+    Scans every `.py` file under the examples repo and every fenced source
+    block inside the how-to markdown pages for `gom.*` tokens. Each token is
+    classified against the already-written `api_functions.json` /
+    `api_classes.json` indices:
+
+      - "documented"      -> the token is a real fqn in the corpus
+      - "mentioned_only"  -> the token only appears in example/howto code;
+                             the MCP server uses this to return a definitive
+                             "not documented" response instead of an empty
+                             miss, preventing the model from burning tool
+                             budget on retries.
+
+    Callable independently of the main build pipeline once the other corpus
+    files exist — useful for iterating on this index without re-parsing the
+    whole docs tree. Returns the written payload for caller inspection.
+    """
+    corpus_dir = Path(corpus_dir)
+    repos_dir = Path(repos_dir)
+    api_repo = Path(api_repo) if api_repo else repos_dir / "zeiss-inspect-app-api"
+    ex_repo = Path(ex_repo) if ex_repo else repos_dir / "zeiss-inspect-app-examples"
+
+    documented = _load_documented_symbols(corpus_dir)
+
+    mentions: dict[str, list[dict[str, str]]] = {}
+
+    def _record(tokens: set[str], kind: str, name: str, file_rel: str) -> None:
+        for tok in tokens:
+            if not tok:
+                continue
+            mentions.setdefault(tok, []).append(
+                {"kind": kind, "name": name, "file": file_rel}
+            )
+
+    # Examples: walk AppExamples/<category>/<example>/**/*.py
+    app_examples = ex_repo / "AppExamples"
+    if app_examples.is_dir():
+        for py in sorted(app_examples.rglob("*.py")):
+            rel = py.relative_to(app_examples)
+            parts = rel.parts
+            if len(parts) < 3:
+                # Not inside a <category>/<example>/... layout; skip.
+                continue
+            example_name = parts[1]
+            file_rel = str(Path(*parts[2:]))
+            try:
+                source = py.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            file_tokens = _extract_referenced_tokens(source)
+            if file_tokens:
+                _record(file_tokens, "example", example_name, file_rel)
+
+    # HowTos: walk doc/howtos/**/*.md, extract fenced code blocks.
+    howtos_root = api_repo / "doc" / "howtos"
+    md_files: list[tuple[Path, str]] = []
+    if howtos_root.is_dir():
+        for md in sorted(howtos_root.rglob("*.md")):
+            if "assets" in md.parts:
+                continue
+            rel_to_ht = md.relative_to(howtos_root).with_suffix("")
+            slug = ".".join(rel_to_ht.parts) if rel_to_ht.parts else md.stem
+            md_files.append((md, slug))
+    legacy = api_repo / "doc" / "python_api" / "scripted_elements_api.md"
+    if legacy.is_file():
+        md_files.append((legacy, "scripted_elements_api"))
+
+    for md, slug in md_files:
+        try:
+            text = _normalize(md.read_text(encoding="utf-8"))
+        except OSError:
+            continue
+        code = "\n".join(m.group("code") for m in HOWTO_CODE_FENCE_RE.finditer(text))
+        if not code:
+            continue
+        file_tokens = _extract_referenced_tokens(code)
+        if file_tokens:
+            _record(file_tokens, "howto", slug, "howto_source.py")
+
+    symbols: dict[str, dict] = {}
+    documented_count = 0
+    mentioned_only_count = 0
+    for tok in sorted(mentions):
+        raw = mentions[tok]
+        if tok in documented:
+            symbols[tok] = {"status": "documented", "mentioned_in": []}
+            documented_count += 1
+        else:
+            seen: set[tuple[str, str, str]] = set()
+            unique: list[dict[str, str]] = []
+            for m in raw:
+                key = (m["kind"], m["name"], m["file"])
+                if key in seen:
+                    continue
+                seen.add(key)
+                unique.append(m)
+            unique.sort(key=lambda m: (m["kind"], m["name"], m["file"]))
+            symbols[tok] = {"status": "mentioned_only", "mentioned_in": unique}
+            mentioned_only_count += 1
+
+    payload = {
+        "meta": {
+            "documented_count": documented_count,
+            "mentioned_only_count": mentioned_only_count,
+        },
+        "symbols": symbols,
+    }
+    _dump(corpus_dir / "referenced_symbols.json", payload)
+    return payload
+
+
+# =============================================================================
 # Main
 # =============================================================================
 
@@ -1244,6 +1394,13 @@ def main() -> int:
     _dump(args.out / "examples.json",
           {k: asdict(v) for k, v in sorted(examples.items())})
     _dump(args.out / "corpus_meta.json", meta)
+
+    ref = build_referenced_symbols(args.out, args.workspace,
+                                   api_repo=api_repo, ex_repo=ex_repo)
+    print(f"      referenced_symbols: "
+          f"{ref['meta']['documented_count']} documented, "
+          f"{ref['meta']['mentioned_only_count']} mentioned-only",
+          file=sys.stderr)
 
     print(f"\nWrote {args.out}/ (INSPECT {args.zeiss_version}, "
           f"api@{meta['api_repo']['commit']}, ex@{meta['ex_repo']['commit']})",
