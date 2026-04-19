@@ -13,7 +13,11 @@ Transports:
                                 (e.g. --http 127.0.0.1:8765)
 
 Tool surface:
+    get_corpus_meta()      version + build provenance for the loaded corpus
     lookup_function(name)  signature, params, examples, howtos for a function
+    get_function_examples(name, limit?)
+                           full examples (with scripts) for a function, in one
+                           call (collapses lookup_function -> get_example chain)
     lookup_class(name)     class description, method list, cross-refs
     lookup_module(name)    module description + function/class listing
     dump_module(name)      every function + class in a module, with full
@@ -29,6 +33,8 @@ Tool surface:
                            if sentence-transformers isn't installed).
     search_by_tag(tag)     examples by tag (tags are derived from category +
                            name tokens if the source has none)
+    list_example_categories()
+                           every category with its example names + one-liners
     list_modules()         all module names with function/class counts
 
 Requires:
@@ -768,6 +774,7 @@ def _howto_view(C: Corpus, slug: str) -> dict:
 
 def build_server(
     C: Corpus,
+    corpus_dir: Path | None = None,
     transport_security=None,
     embed_model: str | None = DEFAULT_EMBED_MODEL,
     embed_cache_dir: Path | None = None,
@@ -800,6 +807,19 @@ def build_server(
     INDEX = HybridSearchIndex(BM25, SEM)
 
     @mcp.tool()
+    def get_corpus_meta() -> dict[str, Any]:
+        """Return version and build provenance for the loaded corpus.
+
+        Call this first to confirm which ZEISS INSPECT version you're grounded in.
+        """
+        if corpus_dir is None:
+            return {"note": "corpus directory not provided to server"}
+        p = corpus_dir / "corpus_meta.json"
+        if p.exists():
+            return json.loads(p.read_text(encoding="utf-8"))
+        return {"note": "corpus_meta.json not found; rebuild corpus to generate it"}
+
+    @mcp.tool()
     def lookup_function(name: str) -> dict[str, Any]:
         """Look up a ZEISS INSPECT Python API function by name.
 
@@ -819,6 +839,26 @@ def build_server(
                 for m in matches
             ]}
         return _function_view(C, matches[0])
+
+    @mcp.tool()
+    def get_function_examples(name: str, limit: int = 3) -> dict[str, Any]:
+        """Return full examples (with scripts) for all examples that use a given function.
+
+        Collapses the common lookup_function -> get_example chain into one call.
+        Accepts full fqn or partial name.
+        """
+        matches = _resolve_function(C, name)
+        if not matches:
+            return {"error": f"no function matching {name!r}"}
+        if len(matches) > 1:
+            return {"candidates": [{"fqn": m} for m in matches]}
+        fn = C.functions[matches[0]]
+        names = (fn.get("used_by_examples") or [])[:limit]
+        return {
+            "fqn": matches[0],
+            "example_count": len(fn.get("used_by_examples") or []),
+            "examples": [_example_view(C, n) for n in names if n in C.examples],
+        }
 
     @mcp.tool()
     def lookup_class(name: str) -> dict[str, Any]:
@@ -983,6 +1023,22 @@ def build_server(
             if any(t.lower() == tl for t in ex.get("tags", []))
         ]
         return {"tag": tag, "count": len(hits), "examples": hits}
+
+    @mcp.tool()
+    def list_example_categories() -> dict[str, Any]:
+        """List all example categories with their examples.
+
+        Use this for 'what scripted_checks examples exist?' style queries.
+        """
+        cats: dict[str, list[dict]] = {}
+        for ex in C.examples.values():
+            cat = ex.get("category") or "uncategorized"
+            cats.setdefault(cat, []).append({
+                "name": ex["name"],
+                "description": ex["description"],
+            })
+        return {"categories": {k: sorted(v, key=lambda x: x["name"])
+                               for k, v in sorted(cats.items())}}
 
     @mcp.tool()
     def dump_module(name: str, include_extended: bool = False) -> dict[str, Any]:
@@ -1192,6 +1248,7 @@ def main() -> int:
     cache_dir = args.embedding_cache_dir or (args.corpus / ".embeddings")
     mcp = build_server(
         C,
+        corpus_dir=args.corpus,
         transport_security=security,
         embed_model=None if args.no_semantic else args.embedding_model,
         embed_cache_dir=cache_dir,
