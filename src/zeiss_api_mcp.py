@@ -252,20 +252,63 @@ def _referenced_but_undocumented(C: Corpus, name: str) -> dict[str, Any] | None:
     """Return a structured "not_documented" response for tokens that show up in
     example/howto source but aren't part of the documented API — or None.
 
-    Prevents the common failure mode where the model lookups a symbol
-    discovered via `search` that lives in the examples repo (e.g.
-    `gom.script.sys.close_project`) and, on the empty miss, burns its
-    tool budget retrying.
+    Accepts the same shapes as `_resolve_function` / `_resolve_class`: exact
+    fqn (`gom.script.sys.close_project`), leaf name (`close_project`), or any
+    dotted suffix. If a single mentioned-only token matches, we return its
+    full fqn and aggregated mentions. If several do, we return candidates so
+    the caller can see it's undocumented without having to guess.
+
+    Prevents the common failure mode where the model picks a symbol name out
+    of a `search` hit on example source (e.g. `create_actual_draft`) and then
+    burns its tool budget retrying `lookup_function` on the empty miss.
     """
-    entry = C.referenced_symbols.get(name)
-    if entry is None or entry.get("status") != "mentioned_only":
+    if not C.referenced_symbols:
         return None
+
+    NOTE = ("This symbol appears in example/howto source but is not part "
+            "of the documented API. Do not attempt further lookups.")
+
+    # Exact fqn hit first — fast path and keeps the existing behavior intact.
+    entry = C.referenced_symbols.get(name)
+    if entry is not None and entry.get("status") == "mentioned_only":
+        return {
+            "status": "not_documented",
+            "name": name,
+            "note": NOTE,
+            "mentioned_in": entry.get("mentioned_in", []),
+        }
+
+    # Suffix match: every mentioned-only fqn that ends in `.<name>` (or IS
+    # `<name>`). Documented fqns are intentionally ignored here — if the
+    # caller hit this helper, `_resolve_*` already failed against them.
+    suffix = "." + name
+    matches: list[tuple[str, dict]] = []
+    for tok, e in C.referenced_symbols.items():
+        if e.get("status") != "mentioned_only":
+            continue
+        if tok == name or tok.endswith(suffix):
+            matches.append((tok, e))
+
+    if not matches:
+        return None
+    if len(matches) == 1:
+        tok, e = matches[0]
+        return {
+            "status": "not_documented",
+            "name": tok,
+            "note": NOTE,
+            "mentioned_in": e.get("mentioned_in", []),
+        }
+    matches.sort(key=lambda x: x[0])
     return {
         "status": "not_documented",
         "name": name,
-        "note": ("This symbol appears in example/howto source but is not "
-                 "part of the documented API. Do not attempt further lookups."),
-        "mentioned_in": entry.get("mentioned_in", []),
+        "note": ("Multiple undocumented symbols match this name. None are "
+                 "part of the documented API; do not attempt further lookups."),
+        "candidates": [
+            {"name": tok, "mentioned_in": e.get("mentioned_in", [])}
+            for tok, e in matches
+        ],
     }
 
 
