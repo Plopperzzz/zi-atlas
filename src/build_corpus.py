@@ -35,6 +35,10 @@ Doc conventions handled (from actual python_api.md / resource_api.md inspection)
   - H3 class headers WITHOUT a fence (e.g. MultiElementCreationScope) -> separate pass
   - Examples as '#### Example', '**Example**', '**Usage example**' etc
     -> captured as part of extended_description (not separately extracted)
+  - doc/howtos/python_api_introduction/python_api_introduction.md:
+      H2 sections document techniques that aren't in gom.api (e.g. accessing
+      clipboard elements, alignments, ElementSelection patterns). Each H2 is
+      split into its own howto entry so the LLM can retrieve them topically.
   - CRLF line endings throughout
 """
 
@@ -883,12 +887,105 @@ def parse_howto(md_path: Path, repo_root: Path, howtos_root: Path) -> HowTo:
     )
 
 
+INTRO_MD_REL = Path("python_api_introduction") / "python_api_introduction.md"
+
+
+def _strip_md_markers(text: str) -> str:
+    """Strip inline markdown emphasis/code markers from heading text."""
+    return re.sub(r"[*_`]+", "", text).strip()
+
+
+def _slugify_heading(text: str) -> str:
+    """Produce a stable, lowercase, underscore-separated slug from a heading."""
+    cleaned = _strip_md_markers(text).lower()
+    slug = re.sub(r"[^a-z0-9]+", "_", cleaned).strip("_")
+    return slug or "section"
+
+
+def _howto_from_chunk(content: str, slug: str, title: str,
+                     source_rel: str) -> HowTo:
+    """Build a HowTo record from a markdown chunk, extracting api mentions and links."""
+    mentions = re.findall(
+        r"\bgom\.(?:api|Resource|app|script|interactive)[\w\.]*", content
+    )
+    api_mentions = sorted({m.rstrip(".,;:)]}'\"`") for m in mentions})
+    linked = sorted({
+        Path(m.group(1)).stem
+        for m in re.finditer(r"\]\(([^)]+?\.md)[^)]*\)", content)
+    })
+    return HowTo(
+        slug=slug, title=title, source_file=source_rel, content=content,
+        api_mentions=api_mentions, linked_howtos=linked,
+    )
+
+
+def parse_python_api_introduction(md_path: Path, repo_root: Path) -> list[HowTo]:
+    """Split python_api_introduction.md into one howto per H2 section.
+
+    Each H2 in this file documents a technique/pattern that isn't part of the
+    `gom.api.*` reference (e.g. `ElementSelection` queries, accessing
+    alignments via `gom.app.project.*`). Splitting the file yields small,
+    topically-focused entries that BM25 + semantic search can return directly
+    instead of dumping the entire doc.
+
+    Any prose before the first H2 becomes the root entry (slug:
+    `python_api_introduction`). If the file has no H2 headings we fall back to
+    a single whole-file howto so the content still reaches the corpus.
+    """
+    text = _normalize(md_path.read_text(encoding="utf-8"))
+    rel = str(md_path.relative_to(repo_root))
+
+    stripped = re.sub(r"^---\n.*?\n---\n", "", text, count=1, flags=re.DOTALL)
+    title_m = re.search(r"^#\s+(.+?)$", stripped, re.MULTILINE)
+    doc_title = title_m.group(1).strip() if title_m else md_path.stem
+
+    h2_matches = list(re.finditer(r"^##\s+(.+?)\s*$", stripped, re.MULTILINE))
+    if not h2_matches:
+        return [_howto_from_chunk(text, "python_api_introduction",
+                                  doc_title, rel)]
+
+    out: list[HowTo] = []
+    seen: set[str] = set()
+
+    preamble_start = title_m.end() if title_m else 0
+    preamble = stripped[preamble_start:h2_matches[0].start()].strip()
+    if preamble:
+        out.append(_howto_from_chunk(
+            preamble, "python_api_introduction", doc_title, rel,
+        ))
+        seen.add("python_api_introduction")
+
+    for i, m in enumerate(h2_matches):
+        heading = m.group(1).strip()
+        body_end = (h2_matches[i + 1].start() if i + 1 < len(h2_matches)
+                    else len(stripped))
+        chunk = stripped[m.start():body_end].strip()
+
+        base_slug = _slugify_heading(heading)
+        slug = f"python_api_introduction.{base_slug}"
+        n = 2
+        while slug in seen:
+            slug = f"python_api_introduction.{base_slug}_{n}"
+            n += 1
+        seen.add(slug)
+
+        out.append(_howto_from_chunk(
+            chunk, slug, _strip_md_markers(heading), rel,
+        ))
+    return out
+
+
 def collect_howtos(api_repo: Path) -> dict[str, HowTo]:
     howtos_dir = api_repo / "doc" / "howtos"
     out: dict[str, HowTo] = {}
+    intro_md = howtos_dir / INTRO_MD_REL
     if howtos_dir.is_dir():
         for md in sorted(howtos_dir.rglob("*.md")):
             if "assets" in md.parts:
+                continue
+            if md == intro_md:
+                for ht in parse_python_api_introduction(md, api_repo):
+                    out[ht.slug] = ht
                 continue
             ht = parse_howto(md, api_repo, howtos_dir)
             out[ht.slug] = ht
