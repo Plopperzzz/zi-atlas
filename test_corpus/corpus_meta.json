@@ -1,0 +1,14 @@
+{
+  "zeiss_version": "2026",
+  "built_at": "2026-04-20T02:51:11Z",
+  "api_repo": {
+    "path": "repos/zeiss-inspect-app-api",
+    "branch": "2026",
+    "commit": "f2193851b"
+  },
+  "ex_repo": {
+    "path": "repos/zeiss-inspect-app-examples",
+    "branch": "main",
+    "commit": "84b0790"
+  }
+}

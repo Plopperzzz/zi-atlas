@@ -1,0 +1,550 @@
+{
+  "gom.app.application_build_information.date": {
+    "chain": "gom.app.application_build_information.date",
+    "root": "gom.app",
+    "description": "5. Add a cell for configuring the connection to ZEISS INSPECT",
+    "access_patterns": [],
+    "mentioned_in_howtos": [
+      "using_jupyter_notebook.using_jupyter_and_vscode"
+    ],
+    "used_by_examples": [],
+    "source_file": "inferred"
+  },
+  "gom.app.application_build_information.revision": {
+    "chain": "gom.app.application_build_information.revision",
+    "root": "gom.app",
+    "description": "5. Add a cell for configuring the connection to ZEISS INSPECT",
+    "access_patterns": [],
+    "mentioned_in_howtos": [
+      "using_jupyter_notebook.using_jupyter_and_vscode"
+    ],
+    "used_by_examples": [
+      "ExcelExample"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.application_build_information.version": {
+    "chain": "gom.app.application_build_information.version",
+    "root": "gom.app",
+    "description": "5. Add a cell for configuring the connection to ZEISS INSPECT",
+    "access_patterns": [],
+    "mentioned_in_howtos": [
+      "using_jupyter_notebook.using_jupyter_and_vscode"
+    ],
+    "used_by_examples": [
+      "ExcelExample"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.application_build_information.version.split": {
+    "chain": "gom.app.application_build_information.version.split",
+    "root": "gom.app",
+    "description": "",
+    "access_patterns": [],
+    "mentioned_in_howtos": [],
+    "used_by_examples": [
+      "PytestTemplate"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.application_name": {
+    "chain": "gom.app.application_name",
+    "root": "gom.app",
+    "description": "",
+    "access_patterns": [],
+    "mentioned_in_howtos": [],
+    "used_by_examples": [
+      "ExcelExample"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.current_date": {
+    "chain": "gom.app.current_date",
+    "root": "gom.app",
+    "description": "",
+    "access_patterns": [],
+    "mentioned_in_howtos": [],
+    "used_by_examples": [
+      "ExcelExample"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.current_user": {
+    "chain": "gom.app.current_user",
+    "root": "gom.app",
+    "description": "",
+    "access_patterns": [],
+    "mentioned_in_howtos": [],
+    "used_by_examples": [
+      "ExcelExample"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.default_directory": {
+    "chain": "gom.app.default_directory",
+    "root": "gom.app",
+    "description": "",
+    "access_patterns": [],
+    "mentioned_in_howtos": [],
+    "used_by_examples": [
+      "MeasurementSystemAnalysis"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.project": {
+    "chain": "gom.app.project",
+    "root": "gom.app",
+    "description": "",
+    "access_patterns": [
+      ".project_keywords"
+    ],
+    "mentioned_in_howtos": [],
+    "used_by_examples": [
+      "SQLExample"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.project.actual_elements": {
+    "chain": "gom.app.project.actual_elements",
+    "root": "gom.app",
+    "description": "This function is used to compute the location of a 3d point in a 2d image. This is a photogrammetric\noperation which will return a precise result. The input parameter is a list of tuples where each tuple consists\nof a 3d point and and acquisition object. The acquisition object is then used to comput",
+    "access_patterns": [
+      "['name']",
+      "['name'].center_coordinate.x",
+      "['name'].center_coordinate.y",
+      "['name'].center_coordinate.z",
+      "['name'].coordinate",
+      "['name'].coordinate1.x",
+      "['name'].coordinate1.y",
+      "['name'].coordinate1.z",
+      "['name'].coordinate2.x",
+      "['name'].coordinate2.y",
+      "['name'].coordinate2.z",
+      "['name'].data.coordinate",
+      "['name'].data.normal",
+      "['name'].data.raw",
+      "['name'].data.voxel_data",
+      "['name'].diameter",
+      "['name'].diameter1",
+      "['name'].diameter2",
+      "['name'].direction.x",
+      "['name'].direction.y",
+      "['name'].direction.z",
+      "['name'].input_value",
+      "['name'].is_inner_surface",
+      "['name'].maximum_gray_value",
+      "['name'].minimum_gray_value",
+      "['name'].normal.x",
+      "['name'].normal.y",
+      "['name'].normal.z",
+      "[cfg.appraiser_tag]",
+      "[cfg.part_tag]",
+      "[cfg.trial_tag]",
+      "[element_names[element]",
+      "[name]"
+    ],
+    "mentioned_in_howtos": [
+      "faq.faq",
+      "python_api.python_api",
+      "scripted_elements.scripted_elements_noninteractive"
+    ],
+    "used_by_examples": [
+      "ExplorerSelectedElementsInDialog",
+      "MeasurementSystemAnalysis",
+      "PytestTemplate",
+      "ReferencePointsAndMeshData",
+      "ScriptedActualCircle",
+      "ScriptedActualCone",
+      "ScriptedActualCurve",
+      "ScriptedActualCylinder",
+      "ScriptedActualDistance",
+      "ScriptedActualPointCloud",
+      "ScriptedActualSection",
+      "ScriptedActualSurface",
+      "ScriptedActualSurfaceCurve",
+      "ScriptedActualVolume",
+      "ScriptedActualVolumeDefects",
+      "ScriptedActualVolumeRegion",
+      "ScriptedActualVolumeSection",
+      "VolumeSectionImageData"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.project.alignments": {
+    "chain": "gom.app.project.alignments",
+    "root": "gom.app",
+    "description": "There is one special handling for multiple parts and scripting with the Original alignment. To distinguish these alignments for different parts, the scripting name contains the part name and is modified into:",
+    "access_patterns": [
+      "['name']"
+    ],
+    "mentioned_in_howtos": [
+      "python_api_introduction.python_api_introduction"
+    ],
+    "used_by_examples": [],
+    "source_file": "inferred"
+  },
+  "gom.app.project.clipboard.actual_elements": {
+    "chain": "gom.app.project.clipboard.actual_elements",
+    "root": "gom.app",
+    "description": "1. Importing the elements into the Elements in clipboard\n2. Add the imported elements to a created part",
+    "access_patterns": [
+      "['name']"
+    ],
+    "mentioned_in_howtos": [
+      "python_api_introduction.python_api_introduction"
+    ],
+    "used_by_examples": [],
+    "source_file": "inferred"
+  },
+  "gom.app.project.get": {
+    "chain": "gom.app.project.get",
+    "root": "gom.app",
+    "description": "From a script, you access the keyword set \"User-defined\". User-defined project keywords have the prefix user internally, i.e. to access the project variable 'Inspector' as shown in the dialog, the following code is used:",
+    "access_patterns": [],
+    "mentioned_in_howtos": [
+      "project_keywords.project_keywords"
+    ],
+    "used_by_examples": [
+      "CSVExample",
+      "ExcelExample",
+      "MeasurementSystemAnalysis",
+      "OSMMapDiagram",
+      "PytestTemplate",
+      "TemplateUnittestCoverage"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.project.in_stage": {
+    "chain": "gom.app.project.in_stage",
+    "root": "gom.app",
+    "description": "To access project keywords per stage:",
+    "access_patterns": [
+      "[stage.index].get"
+    ],
+    "mentioned_in_howtos": [
+      "project_keywords.project_keywords"
+    ],
+    "used_by_examples": [],
+    "source_file": "inferred"
+  },
+  "gom.app.project.inspection": {
+    "chain": "gom.app.project.inspection",
+    "root": "gom.app",
+    "description": "% https://forum.gom.com/topic/80-how-to-access-results-of-surface-point-inspections-within-the-script-faster/\nTo access element values in a specific stage, you can use the instage accessor. The following example shows how strain values of a set of points are printed for a set of stages:",
+    "access_patterns": [
+      "['name']",
+      "['name'].data.result_dimension.deviation.shape",
+      "['name'].deviation_label['name']",
+      "['name'].part",
+      "[\\'{element}\\'].value",
+      "[cfg.sigma_tag].value",
+      "[f'Point {i+1}.epsX'].in_stage[gom.app.project.stages[j].index",
+      "[name]"
+    ],
+    "mentioned_in_howtos": [
+      "faq.faq",
+      "python_api_introduction.python_api_introduction",
+      "python_api_introduction.selecting_elements",
+      "stages.stages",
+      "testing_apps.testing_apps",
+      "user_defined_dialogs.executing_dialogs"
+    ],
+    "used_by_examples": [
+      "CheckResultsDataArray",
+      "MeasurementSystemAnalysis",
+      "ScriptedActualPoint",
+      "ScriptedScalarCheck"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.project.is_part_project": {
+    "chain": "gom.app.project.is_part_project",
+    "root": "gom.app",
+    "description": "Use the following code to determine the type of an existing project:",
+    "access_patterns": [],
+    "mentioned_in_howtos": [
+      "scripting_legacy_projects.scripting_legacy_projects"
+    ],
+    "used_by_examples": [],
+    "source_file": "inferred"
+  },
+  "gom.app.project.measurement_list": {
+    "chain": "gom.app.project.measurement_list",
+    "root": "gom.app",
+    "description": "This is already the case for access via the data interface instead of the token interface: The returned value has the format (stages, <index dimensions>).",
+    "access_patterns": [
+      "['name'].measurement['name'].images['name'].data.rgb",
+      "['name'].measurement['name'].images['name'].data.rgb.shape"
+    ],
+    "mentioned_in_howtos": [
+      "python_api_introduction.python_api_introduction"
+    ],
+    "used_by_examples": [],
+    "source_file": "inferred"
+  },
+  "gom.app.project.measurement_series": {
+    "chain": "gom.app.project.measurement_series",
+    "root": "gom.app",
+    "description": "This function is used to compute the location of a 3d point in a 2d image. This is a photogrammetric\noperation which will return a precise result. The input parameter is a list of tuples where each tuple consists\nof a 3d point and and acquisition object. The acquisition object is then used to comput",
+    "access_patterns": [
+      "['name']",
+      "['name'].measurements",
+      "['name'].measurements['name']",
+      "['name'].measurements['name'].explorer_measurement_quality",
+      "['name'].measurements['name'].images['name'].data.rgb",
+      "['name'].measurements[index]",
+      "[MEASUREMENT_SERIES].measurements[MEASUREMENT]",
+      "[MEASUREMENT_SERIES].measurements[index].name",
+      "[MEASUREMENT_SERIES].results['name'].data.coordinate",
+      "[index].name",
+      "[name]"
+    ],
+    "mentioned_in_howtos": [
+      "faq.faq",
+      "python_api.python_api",
+      "scripting_legacy_projects.scripting_legacy_projects"
+    ],
+    "used_by_examples": [
+      "DisplayImage",
+      "IPCWebsocketExample",
+      "PointPixelTransformations",
+      "ReferencePointsAndMeshData",
+      "TextDetection"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.project.name": {
+    "chain": "gom.app.project.name",
+    "root": "gom.app",
+    "description": "",
+    "access_patterns": [],
+    "mentioned_in_howtos": [],
+    "used_by_examples": [
+      "MeasurementSystemAnalysis"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.project.nominal": {
+    "chain": "gom.app.project.nominal",
+    "root": "gom.app",
+    "description": "So the following procedure is recommended:\n Evaluate if the staged data tokens plus the regular stageless global tokens are sufficient.\n If it is really necessary to access a token which is not delivered via a data interface in another stage, we must think again.\n Global stage switching cannot be th",
+    "access_patterns": [
+      "['name'].data.scalar_value",
+      "['name'].scalar_value"
+    ],
+    "mentioned_in_howtos": [
+      "python_api_introduction.python_api_introduction"
+    ],
+    "used_by_examples": [],
+    "source_file": "inferred"
+  },
+  "gom.app.project.nominal_elements": {
+    "chain": "gom.app.project.nominal_elements",
+    "root": "gom.app",
+    "description": "The Python module gomvec3d defines the classes gom.Vec3d and Point3d. gom.Vec3d objects are used to represent single coordinates, such as a circle's center or a point, e.g.",
+    "access_patterns": [
+      "['name'].center_coordinate"
+    ],
+    "mentioned_in_howtos": [
+      "faq.faq",
+      "python_api_introduction.python_api_introduction",
+      "scripting_legacy_projects.scripting_legacy_projects"
+    ],
+    "used_by_examples": [],
+    "source_file": "inferred"
+  },
+  "gom.app.project.parts": {
+    "chain": "gom.app.project.parts",
+    "root": "gom.app",
+    "description": "One possibility is to iterate over all elements in the different categories (nominal, actual, inspection, alignments) and to check the part attribute. Usually, for most applications this can be achieved easier using an ElementSelection (some elements are hidden and not listed, but usually you do not",
+    "access_patterns": [
+      "['name']",
+      "['name'].actual",
+      "['name'].actual.data.coordinate.shape",
+      "['name'].actual.selection.coordinate",
+      "['name'].actual.selection.normal",
+      "['name'].actual.selection.triangle",
+      "[PART]",
+      "[PART].actual.data.coordinate",
+      "[PART].actual.data.triangle",
+      "[index]",
+      "[index].name"
+    ],
+    "mentioned_in_howtos": [
+      "faq.faq",
+      "python_api_introduction.python_api_introduction",
+      "python_api_introduction.selecting_elements"
+    ],
+    "used_by_examples": [
+      "ExplorerSelectedElementsInDialog",
+      "ReferencePointsAndMeshData"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.project.project_file": {
+    "chain": "gom.app.project.project_file",
+    "root": "gom.app",
+    "description": "",
+    "access_patterns": [],
+    "mentioned_in_howtos": [],
+    "used_by_examples": [
+      "ExcelExample"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.project.project_keywords": {
+    "chain": "gom.app.project.project_keywords",
+    "root": "gom.app",
+    "description": "From a script, you access the keyword set \"User-defined\". User-defined project keywords have the prefix user internally, i.e. to access the project variable 'Inspector' as shown in the dialog, the following code is used:",
+    "access_patterns": [],
+    "mentioned_in_howtos": [
+      "project_keywords.project_keywords"
+    ],
+    "used_by_examples": [
+      "CSVExample",
+      "ExcelExample",
+      "OSMMapDiagram",
+      "PytestTemplate",
+      "SQLExample",
+      "TemplateUnittestCoverage"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.project.project_name": {
+    "chain": "gom.app.project.project_name",
+    "root": "gom.app",
+    "description": "",
+    "access_patterns": [],
+    "mentioned_in_howtos": [],
+    "used_by_examples": [
+      "ExampleProjects"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.project.reports": {
+    "chain": "gom.app.project.reports",
+    "root": "gom.app",
+    "description": "You can switch between automatic and manual mode from within the script by setting the mode variable as shown below:",
+    "access_patterns": [],
+    "mentioned_in_howtos": [
+      "user_defined_dialogs.dialog_widgets"
+    ],
+    "used_by_examples": [],
+    "source_file": "inferred"
+  },
+  "gom.app.project.stage": {
+    "chain": "gom.app.project.stage",
+    "root": "gom.app",
+    "description": "",
+    "access_patterns": [],
+    "mentioned_in_howtos": [],
+    "used_by_examples": [
+      "MeasurementSystemAnalysis"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.project.stage_markers": {
+    "chain": "gom.app.project.stage_markers",
+    "root": "gom.app",
+    "description": "",
+    "access_patterns": [
+      "['name']",
+      "['name'].used_stages",
+      "[cfg.all_stages_range_name]",
+      "[name]",
+      "[name].expression.strip"
+    ],
+    "mentioned_in_howtos": [],
+    "used_by_examples": [
+      "MeasurementSystemAnalysis"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.project.stages": {
+    "chain": "gom.app.project.stages",
+    "root": "gom.app",
+    "description": "This function is used to compute the location of a 3d point in a 2d image. This is a photogrammetric\noperation which will return a precise result. The input parameter is a list of tuples where each tuple consists\nof a 3d point and and acquisition object. The acquisition object is then used to comput",
+    "access_patterns": [
+      "['name']",
+      "['name'].index",
+      "[-1]",
+      "[-1].name",
+      "[\\'{name}\\']",
+      "[gom.app.project.stage]",
+      "[i]",
+      "[index]",
+      "[index].name",
+      "[j].index",
+      "[stage_name]"
+    ],
+    "mentioned_in_howtos": [
+      "project_keywords.project_keywords",
+      "python_api.python_api",
+      "stages.stages"
+    ],
+    "used_by_examples": [
+      "MeasurementSystemAnalysis"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.project.view_csys": {
+    "chain": "gom.app.project.view_csys",
+    "root": "gom.app",
+    "description": "",
+    "access_patterns": [],
+    "mentioned_in_howtos": [],
+    "used_by_examples": [
+      "ScriptedCurveCheck"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.resource": {
+    "chain": "gom.app.resource",
+    "root": "gom.app",
+    "description": "In the Python script, you assign the resource as data to the image widget object:",
+    "access_patterns": [
+      "['name']"
+    ],
+    "mentioned_in_howtos": [
+      "faq.faq"
+    ],
+    "used_by_examples": [
+      "MeasurementSystemAnalysis"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.software_directory": {
+    "chain": "gom.app.software_directory",
+    "root": "gom.app",
+    "description": "",
+    "access_patterns": [],
+    "mentioned_in_howtos": [],
+    "used_by_examples": [
+      "MeasurementSystemAnalysis"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.temp_directory": {
+    "chain": "gom.app.temp_directory",
+    "root": "gom.app",
+    "description": "",
+    "access_patterns": [],
+    "mentioned_in_howtos": [],
+    "used_by_examples": [
+      "ExampleProjects",
+      "MeasurementSystemAnalysis"
+    ],
+    "source_file": "inferred"
+  },
+  "gom.app.user_edited_addon_directory": {
+    "chain": "gom.app.user_edited_addon_directory",
+    "root": "gom.app",
+    "description": "The following script tries to import the modules listed in requiredmodules. A ModuleNotFoundError exception is thrown if a module has not been installed into the App yet. In this case, the script will try to install it. The script has to be restarted in order to make any newly installed modules avai",
+    "access_patterns": [],
+    "mentioned_in_howtos": [
+      "faq.faq"
+    ],
+    "used_by_examples": [],
+    "source_file": "inferred"
+  }
+}

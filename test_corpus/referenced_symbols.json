@@ -1,0 +1,1629 @@
+{
+  "meta": {
+    "documented_count": 69,
+    "mentioned_only_count": 72
+  },
+  "symbols": {
+    "gom.Array": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "faq.faq",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.BreakError": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ExcelExample",
+          "file": "scripts/export_project_keywords.py"
+        },
+        {
+          "kind": "example",
+          "name": "SQLExample",
+          "file": "scripts/SQL_Example.py"
+        },
+        {
+          "kind": "example",
+          "name": "WorkflowAssistants",
+          "file": "scripts/workflows/wizard_workflow.py"
+        },
+        {
+          "kind": "howto",
+          "name": "faq.faq",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.Color": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "user_defined_dialogs.dialog_widgets",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.Date": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "CSVExample",
+          "file": "scripts/csv_export.py"
+        },
+        {
+          "kind": "example",
+          "name": "ExcelExample",
+          "file": "scripts/export_project_keywords.py"
+        }
+      ]
+    },
+    "gom.ElementSelection": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ExplorerSelectedElementsInDialog",
+          "file": "scripts/explorer_selected_elements_in_dialog.py"
+        },
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_excel.py"
+        },
+        {
+          "kind": "example",
+          "name": "ReferencePointsAndMeshData",
+          "file": "scripts/reference_points_and_mesh_data.py"
+        },
+        {
+          "kind": "howto",
+          "name": "python_api_introduction.selecting_elements",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.File": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "IPCWebsocketExample",
+          "file": "scripts/TestServerApp.py"
+        }
+      ]
+    },
+    "gom.Mat4x4": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ScriptedActualVolume",
+          "file": "scripts/ScrActVolume.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualVolumeSection",
+          "file": "scripts/ScrActVolumeSection.py"
+        },
+        {
+          "kind": "howto",
+          "name": "scripted_elements_api",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.Reference": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "scripted_elements.scripted_actuals",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.RequestError": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "IPCWebsocketExample",
+          "file": "scripts/TestServerApp.py"
+        },
+        {
+          "kind": "example",
+          "name": "PytestTemplate",
+          "file": "scripts/tests/run_integrationtests.py"
+        },
+        {
+          "kind": "example",
+          "name": "PytestTemplate",
+          "file": "scripts/uut_project_keywords.py"
+        }
+      ]
+    },
+    "gom.Resource": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.Resource.list": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.Vec3d": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ScriptedActualCone",
+          "file": "scripts/ScrActCone.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualCylinder",
+          "file": "scripts/ScrActCylinder.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualPointCloud",
+          "file": "scripts/ScrActPointCloud.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualSection",
+          "file": "scripts/ScrActSection.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualSurface",
+          "file": "scripts/ScrActSurface.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualVolumeRegion",
+          "file": "scripts/ScrActVolumeRegion.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedCurveCheck",
+          "file": "scripts/ScriptedCurveCheck.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedDiagramBasics",
+          "file": "scripts/scr_act_circle.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedSurfaceCheck",
+          "file": "scripts/ScriptedSurfaceCheck.py"
+        },
+        {
+          "kind": "howto",
+          "name": "faq.faq",
+          "file": "howto_source.py"
+        },
+        {
+          "kind": "howto",
+          "name": "python_api_introduction.python_api_introduction",
+          "file": "howto_source.py"
+        },
+        {
+          "kind": "howto",
+          "name": "scripted_elements_api",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.api.addons.get_current_addon": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.api.diagram.radius_plot": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ScriptedDiagramBasics",
+          "file": "scripts/scr_act_circle.py"
+        }
+      ]
+    },
+    "gom.api.dialog.create": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.api.extensions.actuals": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "custom_elements.custom_nominals_actuals",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.api.extensions.actuals.Circle": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.api.extensions.actuals.Point": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.api.extensions.diagrams.matplotlib_tools": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "OSMMapDiagram",
+          "file": "scripts/service.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedDiagramBasics",
+          "file": "scripts/radius_histogram.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedDiagramBasics",
+          "file": "scripts/radius_plot.py"
+        }
+      ]
+    },
+    "gom.api.extensions.nominals": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "custom_elements.custom_nominals_actuals",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.api.extensions.nominals.Point": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.api.foo": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "PytestTemplate",
+          "file": "scripts/app_utils/service_manager.py"
+        }
+      ]
+    },
+    "gom.api.foo.multiply": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "PytestTemplate",
+          "file": "scripts/app_utils/service_manager.py"
+        }
+      ]
+    },
+    "gom.api.imaging.compute_pixels_from_point": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.api.imaging.compute_point_from_pixels": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.api.interpreter": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "using_jupyter_notebook.using_jupyter_notebook",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.api.interpreter.get_pid": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.api.math": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ServiceExample",
+          "file": "scripts/usage_example.py"
+        },
+        {
+          "kind": "howto",
+          "name": "using_services.using_services",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.api.math.multiply": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ServiceExample",
+          "file": "scripts/usage_example.py"
+        }
+      ]
+    },
+    "gom.api.meshing": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "using_services.using_services",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.api.myendpoint": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "using_services.using_services",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.api.myservice": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "custom_elements.custom_nominals_actuals",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.api.osm.geolocation": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "OSMMapDiagram",
+          "file": "scripts/LocationScalarElement.py"
+        }
+      ]
+    },
+    "gom.api.progress": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ProgressBar",
+          "file": "scripts/progress_bar.py"
+        }
+      ]
+    },
+    "gom.api.progress.ProgressBar": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.api.project": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "PointPixelTransformations",
+          "file": "scripts/point_pixel_transformations.py"
+        }
+      ]
+    },
+    "gom.api.project.get_image_acquisition": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.api.pytest_template.reflect": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "PytestTemplate",
+          "file": "scripts/tests/test_integration/test_service.py"
+        }
+      ]
+    },
+    "gom.api.scripted_checks_util": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ScriptedCurveCheck",
+          "file": "scripts/ScriptedCurveCheck.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedScalarCheck",
+          "file": "scripts/ScriptedScalarCheck.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedSurfaceCheck",
+          "file": "scripts/ScriptedSurfaceCheck.py"
+        }
+      ]
+    },
+    "gom.api.scripted_checks_util.get_cs_transformation_4x4": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ScriptedCurveCheck",
+          "file": "scripts/ScriptedCurveCheck.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedSurfaceCheck",
+          "file": "scripts/ScriptedSurfaceCheck.py"
+        }
+      ]
+    },
+    "gom.api.scripted_checks_util.is_curve_checkable": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.api.scripted_checks_util.is_scalar_checkable": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.api.scripted_checks_util.is_surface_checkable": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.api.services": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "PytestTemplate",
+          "file": "scripts/app_utils/service_manager.py"
+        },
+        {
+          "kind": "example",
+          "name": "PytestTemplate",
+          "file": "scripts/tests/test_integration/test_service.py"
+        },
+        {
+          "kind": "example",
+          "name": "ServiceExample",
+          "file": "scripts/usage_example.py"
+        }
+      ]
+    },
+    "gom.api.services.Service": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.api.services.get_services": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.api.settings": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "OSMMapDiagram",
+          "file": "scripts/service.py"
+        },
+        {
+          "kind": "example",
+          "name": "SQLExample",
+          "file": "scripts/SQL_Example.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedDiagramBasics",
+          "file": "scripts/radius_histogram.py"
+        }
+      ]
+    },
+    "gom.api.settings.get": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.api.settings.set": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.api.statistics.radius_histogram": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ScriptedDiagramBasics",
+          "file": "scripts/scr_act_circle.py"
+        }
+      ]
+    },
+    "gom.api.test": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ServiceExample",
+          "file": "scripts/usage_example.py"
+        },
+        {
+          "kind": "howto",
+          "name": "using_services.using_services",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.api.test.reflect": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ServiceExample",
+          "file": "scripts/usage_example.py"
+        }
+      ]
+    },
+    "gom.app": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "CSVExample",
+          "file": "scripts/csv_export.py"
+        },
+        {
+          "kind": "example",
+          "name": "CSVExample",
+          "file": "scripts/csv_import.py"
+        },
+        {
+          "kind": "example",
+          "name": "ExampleProjects",
+          "file": "scripts/ExampleProjects/setup_project.py"
+        },
+        {
+          "kind": "example",
+          "name": "ExcelExample",
+          "file": "scripts/export_project_keywords.py"
+        },
+        {
+          "kind": "example",
+          "name": "ExcelExample",
+          "file": "scripts/import_project_keywords.py"
+        },
+        {
+          "kind": "example",
+          "name": "SQLExample",
+          "file": "scripts/SQL_Example.py"
+        }
+      ]
+    },
+    "gom.app.application_build_information.date": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "using_jupyter_notebook.using_jupyter_and_vscode",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.app.application_build_information.revision": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ExcelExample",
+          "file": "scripts/export_project_keywords.py"
+        },
+        {
+          "kind": "howto",
+          "name": "using_jupyter_notebook.using_jupyter_and_vscode",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.app.application_build_information.version": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ExcelExample",
+          "file": "scripts/export_project_keywords.py"
+        },
+        {
+          "kind": "howto",
+          "name": "using_jupyter_notebook.using_jupyter_and_vscode",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.app.application_build_information.version.split": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "PytestTemplate",
+          "file": "scripts/tests/run_integrationtests.py"
+        }
+      ]
+    },
+    "gom.app.application_name": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ExcelExample",
+          "file": "scripts/export_project_keywords.py"
+        }
+      ]
+    },
+    "gom.app.current_date": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ExcelExample",
+          "file": "scripts/export_project_keywords.py"
+        }
+      ]
+    },
+    "gom.app.current_user": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ExcelExample",
+          "file": "scripts/export_project_keywords.py"
+        }
+      ]
+    },
+    "gom.app.default_directory": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_excel.py"
+        }
+      ]
+    },
+    "gom.app.project": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "SQLExample",
+          "file": "scripts/SQL_Example.py"
+        },
+        {
+          "kind": "howto",
+          "name": "faq.faq",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.app.project.actual": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "python_api_introduction.python_api_introduction",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.app.project.actual_elements": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ExplorerSelectedElementsInDialog",
+          "file": "scripts/explorer_selected_elements_in_dialog.py"
+        },
+        {
+          "kind": "example",
+          "name": "ExplorerSelectedElementsInDialog",
+          "file": "scripts/tests/test_dialog_widgets_explorer_selection.py"
+        },
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_anova_2.py"
+        },
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_anova_3.py"
+        },
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_gui.py"
+        },
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_lib.py"
+        },
+        {
+          "kind": "example",
+          "name": "PytestTemplate",
+          "file": "scripts/tests/test_integration/test_scripted_element.py"
+        },
+        {
+          "kind": "example",
+          "name": "ReferencePointsAndMeshData",
+          "file": "scripts/reference_points_and_mesh_data.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualCircle",
+          "file": "scripts/tests/test_scr_act_circle.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualCone",
+          "file": "scripts/tests/test_scr_act_cone.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualCurve",
+          "file": "scripts/tests/test_scr_act_curve.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualCylinder",
+          "file": "scripts/tests/test_scr_act_cylinder.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualDistance",
+          "file": "scripts/tests/test_scr_act_distance.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualPointCloud",
+          "file": "scripts/tests/test_scr_act_point_cloud_results.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualSection",
+          "file": "scripts/tests/test_scr_act_section.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualSurface",
+          "file": "scripts/tests/test_scr_act_surface.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualSurfaceCurve",
+          "file": "scripts/tests/test_scr_act_surface_curve.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualVolume",
+          "file": "scripts/tests/test_scr_act_volume.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualVolumeDefects",
+          "file": "scripts/tests/test_scr_act_volume_defects.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualVolumeRegion",
+          "file": "scripts/tests/test_scr_act_volume_region.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualVolumeSection",
+          "file": "scripts/tests/test_scr_act_volume_section.py"
+        },
+        {
+          "kind": "example",
+          "name": "VolumeSectionImageData",
+          "file": "scripts/tests/test_data_interfaces_volume_section.py"
+        },
+        {
+          "kind": "howto",
+          "name": "python_api_introduction.python_api_introduction",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.app.project.alignments": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "python_api_introduction.python_api_introduction",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.app.project.get": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "CSVExample",
+          "file": "scripts/csv_export.py"
+        },
+        {
+          "kind": "example",
+          "name": "CSVExample",
+          "file": "scripts/csv_import.py"
+        },
+        {
+          "kind": "example",
+          "name": "ExcelExample",
+          "file": "scripts/export_project_keywords.py"
+        },
+        {
+          "kind": "example",
+          "name": "ExcelExample",
+          "file": "scripts/import_project_keywords.py"
+        },
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_excel.py"
+        },
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_gui.py"
+        },
+        {
+          "kind": "example",
+          "name": "OSMMapDiagram",
+          "file": "scripts/LocationScalarElement.py"
+        },
+        {
+          "kind": "example",
+          "name": "PytestTemplate",
+          "file": "scripts/tests/test_integration/test_blackbox.py"
+        },
+        {
+          "kind": "example",
+          "name": "PytestTemplate",
+          "file": "scripts/uut_project_keywords.py"
+        },
+        {
+          "kind": "example",
+          "name": "TemplateUnittestCoverage",
+          "file": "scripts/tests/test_blackbox.py"
+        },
+        {
+          "kind": "example",
+          "name": "TemplateUnittestCoverage",
+          "file": "scripts/uut_project_keywords.py"
+        }
+      ]
+    },
+    "gom.app.project.inspection": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "CheckResultsDataArray",
+          "file": "scripts/check_results_data_array.py"
+        },
+        {
+          "kind": "example",
+          "name": "CheckResultsDataArray",
+          "file": "scripts/tests/test_data_interfaces_check_results.py"
+        },
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_anova_2.py"
+        },
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_anova_3.py"
+        },
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_excel.py"
+        },
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_gui.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedActualPoint",
+          "file": "scripts/tests/test_scripted_actuals_offset_point.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedScalarCheck",
+          "file": "scripts/tests/test_scripted_checks.py"
+        },
+        {
+          "kind": "howto",
+          "name": "python_api_introduction.python_api_introduction",
+          "file": "howto_source.py"
+        },
+        {
+          "kind": "howto",
+          "name": "python_api_introduction.selecting_elements",
+          "file": "howto_source.py"
+        },
+        {
+          "kind": "howto",
+          "name": "testing_apps.testing_apps",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.app.project.measurement_series": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "DisplayImage",
+          "file": "scripts/display_image.py"
+        },
+        {
+          "kind": "example",
+          "name": "IPCWebsocketExample",
+          "file": "scripts/TestServerApp.py"
+        },
+        {
+          "kind": "example",
+          "name": "PointPixelTransformations",
+          "file": "scripts/point_pixel_transformations.py"
+        },
+        {
+          "kind": "example",
+          "name": "ReferencePointsAndMeshData",
+          "file": "scripts/reference_points_and_mesh_data.py"
+        },
+        {
+          "kind": "example",
+          "name": "TextDetection",
+          "file": "scripts/display_image.py"
+        },
+        {
+          "kind": "example",
+          "name": "TextDetection",
+          "file": "scripts/text_extraction.py"
+        }
+      ]
+    },
+    "gom.app.project.name": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_gui.py"
+        },
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_lib.py"
+        }
+      ]
+    },
+    "gom.app.project.nominal_elements": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "python_api_introduction.python_api_introduction",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.app.project.parts": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ExplorerSelectedElementsInDialog",
+          "file": "scripts/explorer_selected_elements_in_dialog.py"
+        },
+        {
+          "kind": "example",
+          "name": "ReferencePointsAndMeshData",
+          "file": "scripts/reference_points_and_mesh_data.py"
+        },
+        {
+          "kind": "howto",
+          "name": "faq.faq",
+          "file": "howto_source.py"
+        },
+        {
+          "kind": "howto",
+          "name": "python_api_introduction.selecting_elements",
+          "file": "howto_source.py"
+        },
+        {
+          "kind": "howto",
+          "name": "scripting_legacy_projects.scripting_legacy_projects",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.app.project.project_file": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ExcelExample",
+          "file": "scripts/export_project_keywords.py"
+        }
+      ]
+    },
+    "gom.app.project.project_keywords": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "CSVExample",
+          "file": "scripts/csv_export.py"
+        },
+        {
+          "kind": "example",
+          "name": "CSVExample",
+          "file": "scripts/csv_import.py"
+        },
+        {
+          "kind": "example",
+          "name": "ExcelExample",
+          "file": "scripts/export_project_keywords.py"
+        },
+        {
+          "kind": "example",
+          "name": "ExcelExample",
+          "file": "scripts/import_project_keywords.py"
+        },
+        {
+          "kind": "example",
+          "name": "OSMMapDiagram",
+          "file": "scripts/LocationScalarElement.py"
+        },
+        {
+          "kind": "example",
+          "name": "PytestTemplate",
+          "file": "scripts/uut_project_keywords.py"
+        },
+        {
+          "kind": "example",
+          "name": "SQLExample",
+          "file": "scripts/SQL_Example.py"
+        },
+        {
+          "kind": "example",
+          "name": "TemplateUnittestCoverage",
+          "file": "scripts/uut_project_keywords.py"
+        },
+        {
+          "kind": "howto",
+          "name": "project_keywords.project_keywords",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.app.project.project_name": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ExampleProjects",
+          "file": "scripts/ExampleProjects/setup_project.py"
+        }
+      ]
+    },
+    "gom.app.project.reports": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "user_defined_dialogs.dialog_widgets",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.app.project.stage": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_gui.py"
+        }
+      ]
+    },
+    "gom.app.project.stage_markers": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_anova_2.py"
+        },
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_anova_3.py"
+        },
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_lib.py"
+        }
+      ]
+    },
+    "gom.app.project.stages": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_gui.py"
+        },
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_lib.py"
+        },
+        {
+          "kind": "howto",
+          "name": "scripting_legacy_projects.scripting_legacy_projects",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.app.project.view_csys": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ScriptedCurveCheck",
+          "file": "scripts/ScriptedCurveCheck.py"
+        }
+      ]
+    },
+    "gom.app.resource": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_excel.py"
+        }
+      ]
+    },
+    "gom.app.software_directory": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_excel.py"
+        }
+      ]
+    },
+    "gom.app.temp_directory": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ExampleProjects",
+          "file": "scripts/ExampleProjects/setup_project.py"
+        },
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_gui.py"
+        },
+        {
+          "kind": "example",
+          "name": "MeasurementSystemAnalysis",
+          "file": "scripts/MSA/Tools/MeasurementSystemAnalysis/msa_lib.py"
+        }
+      ]
+    },
+    "gom.com": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "ScriptedActualCone",
+          "file": "scripts/tests/test_scr_act_cone.py"
+        },
+        {
+          "kind": "howto",
+          "name": "scripted_elements_api",
+          "file": "howto_source.py"
+        },
+        {
+          "kind": "howto",
+          "name": "stages.stages",
+          "file": "howto_source.py"
+        },
+        {
+          "kind": "howto",
+          "name": "starting_options.starting_options",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.interactive": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "starting_options.starting_options",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.log.debug": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "OSMMapDiagram",
+          "file": "scripts/service.py"
+        },
+        {
+          "kind": "example",
+          "name": "PytestTemplate",
+          "file": "scripts/app_utils/service_coverage.py"
+        },
+        {
+          "kind": "example",
+          "name": "PytestTemplate",
+          "file": "scripts/services/reflector.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedDiagramBasics",
+          "file": "scripts/radius_histogram.py"
+        },
+        {
+          "kind": "example",
+          "name": "ServiceExample",
+          "file": "scripts/multiplicator/service.py"
+        },
+        {
+          "kind": "example",
+          "name": "ServiceExample",
+          "file": "scripts/reflector/service.py"
+        }
+      ]
+    },
+    "gom.log.info": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "OSMMapDiagram",
+          "file": "scripts/service.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedDiagramBasics",
+          "file": "scripts/radius_histogram.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedDiagramBasics",
+          "file": "scripts/radius_plot.py"
+        }
+      ]
+    },
+    "gom.run_api": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "OSMMapDiagram",
+          "file": "scripts/service.py"
+        },
+        {
+          "kind": "example",
+          "name": "PytestTemplate",
+          "file": "scripts/services/reflector.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedDiagramBasics",
+          "file": "scripts/radius_histogram.py"
+        },
+        {
+          "kind": "example",
+          "name": "ScriptedDiagramBasics",
+          "file": "scripts/radius_plot.py"
+        },
+        {
+          "kind": "example",
+          "name": "ServiceExample",
+          "file": "scripts/multiplicator/service.py"
+        },
+        {
+          "kind": "example",
+          "name": "ServiceExample",
+          "file": "scripts/reflector/service.py"
+        },
+        {
+          "kind": "howto",
+          "name": "custom_elements.custom_nominals_actuals",
+          "file": "howto_source.py"
+        },
+        {
+          "kind": "howto",
+          "name": "using_services.using_services",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.script": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "adding_workspaces_to_apps.adding_workspaces_to_apps",
+          "file": "howto_source.py"
+        },
+        {
+          "kind": "howto",
+          "name": "starting_options.starting_options",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.script.cad.delete_element": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.cad.edit_element_keywords": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.cad.hide_element": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.cad.set_label_position": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.cad.show_element": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.ct.get_system_status": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.explorer.apply_selection": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.inspection.create_constant_value_element": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.inspection.create_value_element": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.inspection.measure_by_no_measuring_principle": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.report.update_report_page": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.scriptedelements.create_actual_draft": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.scriptedelements.create_nominal_draft": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "custom_elements.custom_nominals_actuals",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.script.sys.close_project": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.close_stage_range": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.close_user_defined_dialog": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.create_element_by_script": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.create_measurement_series_for_other_images": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.create_project": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.create_stage_range_by_expression": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.create_user_defined_dialog": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.delay_script": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.edit_creation_parameters": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.execute_script": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.execute_user_defined_dialog": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.exit_program": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.import_gom_inspection_exchange": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.import_other_images": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.import_pol": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.import_project": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.import_script": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.import_stl": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.load_project": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.open_user_defined_dialog": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.recalculate_all_elements": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.recalculate_project": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.recalculate_visible_elements_in_all_stages": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.select_assistant_page": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.set_project_keywords": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.show_next_stage": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.show_previous_stage": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.show_stage": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.show_user_defined_dialog": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.switch_to_inspection_workspace": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.switch_to_report_workspace": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.sys.update_addon_database": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.table.import_table_template": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.table.switch_template": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.userscript": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "howto",
+          "name": "starting_options.starting_options",
+          "file": "howto_source.py"
+        }
+      ]
+    },
+    "gom.script.view.auto_zoom": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.view.set_tab_visible": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.script.view.show_view_frustum_draft": {
+      "status": "documented",
+      "mentioned_in": []
+    },
+    "gom.tr": {
+      "status": "mentioned_only",
+      "mentioned_in": [
+        {
+          "kind": "example",
+          "name": "OSMMapDiagram",
+          "file": "scripts/service.py"
+        }
+      ]
+    }
+  }
+}

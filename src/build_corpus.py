@@ -22,8 +22,10 @@ Branch strategy:
 
 Outputs:
   api_functions.json   {fqn: ApiFunction}   functions, methods, static methods
+                       includes inferred gom.script.* stubs (inferred=True)
   api_classes.json     {fqn: ApiClass}      class descriptions + method lists
   modules.json         {module: ModuleMeta} module description + class/function lists
+  attributes.json      {chain: InferredAttribute}  gom.app.* property chains
   howtos.json          {slug: HowTo}        doc/howtos/**/*.md
   examples.json        {name: Example}      AppExamples/**/Documentation.md + code
   corpus_meta.json     {zeiss_version, built_at, repo commits}
@@ -234,6 +236,7 @@ class ApiFunction:
     source_anchor: str = ""
     used_by_examples: list[str] = field(default_factory=list)
     mentioned_in_howtos: list[str] = field(default_factory=list)
+    inferred: bool = False              # True = stub built from usage evidence, not formal docs
 
 
 @dataclass
@@ -285,6 +288,17 @@ class Example:
     scripts: dict[str, str] = field(default_factory=dict)
     example_projects: list[str] = field(default_factory=list)
     mentioned_in_howtos: list[str] = field(default_factory=list)
+
+
+@dataclass
+class InferredAttribute:
+    chain: str                                      # gom.app.project.parts
+    root: str                                       # gom.app
+    description: str = ""                          # from surrounding prose / comments
+    access_patterns: list[str] = field(default_factory=list)  # e.g. ["['name']", "[index]"]
+    mentioned_in_howtos: list[str] = field(default_factory=list)
+    used_by_examples: list[str] = field(default_factory=list)
+    source_file: str = "inferred"
 
 
 # =============================================================================
@@ -1095,8 +1109,344 @@ def collect_examples(ex_repo: Path) -> dict[str, Example]:
 
 
 # =============================================================================
-# AST: extract maximal gom.* attribute chains from Python source
+# Usage-based inference (gom.script.* and gom.app.*)
 # =============================================================================
+#
+# The formal API docs only cover gom.api.*. The howtos and examples also make
+# heavy use of:
+#   gom.script.<module>.<fn>(...)   callable scripting/command functions
+#   gom.app.<attr chain>            property access on the live project object
+#
+# We mine both namespaces from fenced code blocks in howto markdown and from
+# example Python scripts, producing:
+#   - ApiFunction stubs  (inferred=True)  merged into api_functions.json
+#   - InferredAttribute records           written to attributes.json
+#
+# Stubs carry: description (best prose/comment near first use), all kwarg names
+# seen across all usages, cross-refs to howtos/examples.
+# Attributes carry: access patterns seen (e.g. ["['name']", "[index]"]), cross-refs.
+
+
+# Matches gom.script.<submodule>.<fn>(  — exactly two levels after gom.script.
+_SCRIPT_CALL_RE = re.compile(r"\b(gom\.script\.\w+\.\w+)\s*\(")
+
+# Matches gom.app.<chain> — captures up to 8 attribute segments, stopping
+# before subscripts, calls, or end of identifier.
+_APP_ATTR_RE = re.compile(r"\b(gom\.app(?:\.\w+){1,8})(?=[^.\w]|$)")
+
+# Code fences in markdown (reuses the same pattern as HOWTO_CODE_FENCE_RE below,
+# defined here to avoid forward reference; we keep both so existing callers work).
+# Uses [^\n]* for the language line so "``` Python" (with leading space) is handled.
+_INFERENCE_FENCE_RE = re.compile(
+    r"```[^\n]*\n(?P<code>.*?)^```",
+    re.MULTILINE | re.DOTALL,
+)
+
+
+def _balanced_call_args(source: str, open_pos: int, max_scan: int = 4000) -> str:
+    """Return the content between the '(' at open_pos and its matching ')'.
+
+    Respects nesting and skips over quoted strings so commas inside strings or
+    nested calls don't confuse the scanner. Returns a truncated fragment if the
+    close paren is not found within max_scan chars.
+    """
+    depth = 0
+    in_sq = in_dq = False
+    i = open_pos
+    limit = min(open_pos + max_scan, len(source))
+    while i < limit:
+        c = source[i]
+        if in_sq:
+            if c == "\\" and i + 1 < limit:
+                i += 2; continue
+            if c == "'":
+                in_sq = False
+        elif in_dq:
+            if c == "\\" and i + 1 < limit:
+                i += 2; continue
+            if c == '"':
+                in_dq = False
+        else:
+            if c == "'":
+                in_sq = True
+            elif c == '"':
+                in_dq = True
+            elif c in "([{":
+                depth += 1
+            elif c in ")]}":
+                depth -= 1
+                if depth == 0:
+                    return source[open_pos + 1:i]
+        i += 1
+    return source[open_pos + 1: open_pos + 500]   # fallback: truncate
+
+
+def _kwargs_from_args(args_str: str) -> list[str]:
+    """Extract kwarg names from a call argument string.
+
+    Matches `word=` patterns while ignoring `==` comparisons and `**kwargs`.
+    """
+    return sorted(set(re.findall(r"(?<![=!<>*])\b(\w+)\s*=(?!=)", args_str)))
+
+
+def _prose_before_pos(text: str, pos: int) -> str:
+    """Return the last meaningful prose paragraph that ends before pos.
+
+    Skips headings, fences, directives, and very short fragments (< 20 chars
+    after stripping markdown syntax).
+    """
+    before = text[:pos]
+    paras = [p.strip() for p in re.split(r"\n\n+", before)]
+    for p in reversed(paras):
+        if not p:
+            continue
+        if p.startswith(("#", "```", "::", "{", "!")):
+            continue
+        clean = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", p)   # strip links
+        clean = re.sub(r"[*_`{}\[\]]+", "", clean).strip()
+        if len(clean) > 20:
+            return clean[:300]
+    return ""
+
+
+def _comment_lines_before(source: str, pos: int, max_lines: int = 5) -> str:
+    """Return text from # comment lines immediately preceding pos in Python source."""
+    lines = source[:pos].split("\n")
+    comments: list[str] = []
+    found_nonblank = False  # have we passed trailing blank lines yet?
+    for line in reversed(lines):
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            found_nonblank = True
+            comments.append(stripped.lstrip("#").strip())
+            if len(comments) >= max_lines:
+                break
+        elif stripped == "":
+            if found_nonblank:
+                break   # blank line separating comment block from earlier code
+            # else: trailing blank between pos and the comment — skip
+        else:
+            break       # non-comment, non-blank line — stop scanning
+    return " ".join(reversed(comments))
+
+
+def _best_description(snippets: list[str]) -> str:
+    """Return the most informative non-empty snippet, preferring longer sentences."""
+    candidates = [s.strip() for s in snippets if s and len(s.strip()) > 10]
+    if not candidates:
+        return ""
+    return sorted(candidates, key=len, reverse=True)[0][:300]
+
+
+def _script_module(fqn: str) -> str:
+    """gom.script.part.create_new_part  ->  gom.script.part"""
+    parts = fqn.split(".")
+    if len(parts) >= 4 and parts[:2] == ["gom", "script"]:
+        return ".".join(parts[:3])
+    return ".".join(parts[:-1])
+
+
+def _app_access_patterns(source: str, chain: str) -> list[str]:
+    """Return normalised access patterns that follow chain in source.
+
+    e.g. chain='gom.app.project.parts':
+        gom.app.project.parts['Part 1']  -> ["['name']"]
+        gom.app.project.parts[0]         -> ["[index]"]
+        gom.app.project.parts            -> []          (bare reference)
+    """
+    patterns: set[str] = set()
+    escaped = re.escape(chain)
+    for m in re.finditer(escaped + r"((?:\[[^\]]*\]|\.\w+)+)", source):
+        suffix = m.group(1)
+        suffix = re.sub(r'\[["\']([^"\']*)["\'] *\]', "['name']", suffix)
+        suffix = re.sub(r"\[\d+\]", "[index]", suffix)
+        if suffix:
+            patterns.add(suffix[:80])
+    return sorted(patterns)
+
+
+def _mine_source(
+    source: str,
+    is_markdown: bool,
+    source_label: str,
+    source_kind: str,         # "howto" | "example"
+    script_ev: dict,          # {fqn: evidence_dict}  — mutated
+    attr_ev: dict,            # {chain: evidence_dict} — mutated
+) -> None:
+    """Mine one source text for gom.script.* calls and gom.app.* chains.
+
+    For markdown only fenced code blocks are scanned; Python files are scanned
+    in full.
+    """
+    blocks: list[tuple[str, int]] = []
+    if is_markdown:
+        for fm in _INFERENCE_FENCE_RE.finditer(source):
+            blocks.append((fm.group("code"), fm.start()))
+    else:
+        blocks.append((source, 0))
+
+    for code, fence_start in blocks:
+
+        # ── gom.script.* calls ───────────────────────────────────────────────
+        for m in _SCRIPT_CALL_RE.finditer(code):
+            fqn = m.group(1)
+            # Find the '(' that belongs to this call.
+            open_paren = code.find("(", m.end(1))
+            if open_paren == -1:
+                continue
+            args = _balanced_call_args(code, open_paren)
+            kwargs = _kwargs_from_args(args)
+
+            # Description: inline comment on the line(s) above > prose before fence.
+            # Use line_start so assignments like `X = gom.script...` don't
+            # cut off the backward scan before reaching the comment.
+            line_start = code.rfind("\n", 0, m.start()) + 1
+            desc = _comment_lines_before(code, line_start)
+            if not desc and is_markdown:
+                desc = _prose_before_pos(source, fence_start)
+
+            ev = script_ev.setdefault(fqn, {
+                "fqn": fqn,
+                "kwarg_names": set(),
+                "descriptions": [],
+                "howto_slugs": set(),
+                "example_names": set(),
+            })
+            ev["kwarg_names"].update(kwargs)
+            if desc:
+                ev["descriptions"].append(desc)
+            if source_kind == "howto":
+                ev["howto_slugs"].add(source_label)
+            else:
+                ev["example_names"].add(source_label)
+
+        # ── gom.app.* attribute chains ────────────────────────────────────────
+        seen_chains: set[str] = set()
+        for am in _APP_ATTR_RE.finditer(code):
+            chain = am.group(1).rstrip(".")
+            # Require at least gom.app.<one_more> — bare `gom.app` is not useful.
+            if chain.count(".") < 2:
+                continue
+            seen_chains.add(chain)
+
+        for chain in seen_chains:
+            prose = _prose_before_pos(source, fence_start) if is_markdown else ""
+            patterns = _app_access_patterns(code, chain)
+
+            aev = attr_ev.setdefault(chain, {
+                "chain": chain,
+                "root": ".".join(chain.split(".")[:2]),
+                "descriptions": [],
+                "patterns": set(),
+                "howto_slugs": set(),
+                "example_names": set(),
+            })
+            if prose:
+                aev["descriptions"].append(prose)
+            aev["patterns"].update(patterns)
+            if source_kind == "howto":
+                aev["howto_slugs"].add(source_label)
+            else:
+                aev["example_names"].add(source_label)
+
+
+def collect_inferred_api(
+    api_repo: Path,
+    ex_repo: Path,
+) -> tuple[dict[str, ApiFunction], dict[str, InferredAttribute]]:
+    """Mine gom.script.* stubs and gom.app.* attribute records from howtos + examples.
+
+    Sources:
+      - api_repo/doc/howtos/**/*.md           (fenced code blocks only)
+      - api_repo/doc/python_api/*.md           (fenced code blocks only)
+      - ex_repo/AppExamples/**/*.py            (full Python source)
+
+    Returns:
+      functions  : {fqn: ApiFunction}          inferred=True stubs
+      attributes : {chain: InferredAttribute}  gom.app.* attribute chains
+    """
+    script_ev: dict[str, dict] = {}
+    attr_ev: dict[str, dict] = {}
+
+    # --- Howto markdown files ---
+    howtos_dir = api_repo / "doc" / "howtos"
+    if howtos_dir.is_dir():
+        for md in sorted(howtos_dir.rglob("*.md")):
+            if "assets" in md.parts:
+                continue
+            rel = md.relative_to(howtos_dir).with_suffix("")
+            slug = ".".join(rel.parts) if rel.parts else md.stem
+            try:
+                text = _normalize(md.read_text(encoding="utf-8"))
+            except OSError:
+                continue
+            _mine_source(text, True, slug, "howto", script_ev, attr_ev)
+
+    # --- python_api markdown files (scripted_elements_api.md etc.) ---
+    py_api_dir = api_repo / "doc" / "python_api"
+    if py_api_dir.is_dir():
+        for md in sorted(py_api_dir.glob("*.md")):
+            slug = "python_api." + md.stem
+            try:
+                text = _normalize(md.read_text(encoding="utf-8"))
+            except OSError:
+                continue
+            _mine_source(text, True, slug, "howto", script_ev, attr_ev)
+
+    # --- Example Python scripts ---
+    app_examples = ex_repo / "AppExamples"
+    if app_examples.is_dir():
+        for py in sorted(app_examples.rglob("*.py")):
+            rel_parts = py.relative_to(app_examples).parts
+            if len(rel_parts) < 3:
+                continue
+            example_name = rel_parts[1]
+            try:
+                src = py.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            _mine_source(src, False, example_name, "example", script_ev, attr_ev)
+
+    # --- Synthesise ApiFunction stubs ---
+    functions: dict[str, ApiFunction] = {}
+    for fqn, ev in sorted(script_ev.items()):
+        kwargs = sorted(ev["kwarg_names"])
+        sig_args = ", ".join(f"{k}=..." for k in kwargs) if kwargs else "..."
+        functions[fqn] = ApiFunction(
+            fqn=fqn,
+            module=_script_module(fqn),
+            name=fqn.rsplit(".", 1)[-1],
+            kind="function",
+            signature=f"{fqn}({sig_args})",
+            params=[{"name": k, "type": "", "desc": ""} for k in kwargs],
+            description=_best_description(ev["descriptions"]),
+            extended_description=(
+                "Inferred from usage in howtos/examples — no formal API docs exist. "
+                "Signature shows observed keyword arguments only; positional-only "
+                "or optional kwargs may not be listed."
+            ),
+            source_file="inferred",
+            mentioned_in_howtos=sorted(ev["howto_slugs"]),
+            used_by_examples=sorted(ev["example_names"]),
+            inferred=True,
+        )
+
+    # --- Synthesise InferredAttribute records ---
+    attributes: dict[str, InferredAttribute] = {}
+    for chain, aev in sorted(attr_ev.items()):
+        attributes[chain] = InferredAttribute(
+            chain=chain,
+            root=aev["root"],
+            description=_best_description(aev["descriptions"]),
+            access_patterns=sorted(aev["patterns"]),
+            mentioned_in_howtos=sorted(aev["howto_slugs"]),
+            used_by_examples=sorted(aev["example_names"]),
+        )
+
+    return functions, attributes
+
+
+
 
 def extract_gom_calls(source: str) -> set[str]:
     try:
@@ -1406,7 +1756,7 @@ def main() -> int:
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
 
-    print(f"[0/4] Preparing repos for ZEISS INSPECT {args.zeiss_version}", file=sys.stderr)
+    print(f"[0/5] Preparing repos for ZEISS INSPECT {args.zeiss_version}", file=sys.stderr)
     api_repo, ex_repo, meta = prepare_repos(
         workspace=args.workspace,
         zeiss_version=args.zeiss_version,
@@ -1420,7 +1770,7 @@ def main() -> int:
     print(f"      ex  repo: {ex_repo} @ {meta['ex_repo']['branch']} "
           f"({meta['ex_repo']['commit']})", file=sys.stderr)
 
-    print(f"[1/4] API docs <- {api_repo}/doc/python_api", file=sys.stderr)
+    print(f"[1/5] API docs <- {api_repo}/doc/python_api", file=sys.stderr)
     api, classes, modules = collect_api(api_repo)
     brief_ok = sum(1 for f in api.values() if f.description)
     print(f"      {len(api)} functions / {len(classes)} classes / {len(modules)} modules",
@@ -1428,15 +1778,36 @@ def main() -> int:
     print(f"      {brief_ok}/{len(api)} functions have a description",
           file=sys.stderr)
 
-    print(f"[2/4] How-tos <- {api_repo}/doc/howtos", file=sys.stderr)
+    print(f"[2/5] How-tos <- {api_repo}/doc/howtos", file=sys.stderr)
     howtos = collect_howtos(api_repo)
     print(f"      {len(howtos)} guides parsed", file=sys.stderr)
 
-    print(f"[3/4] Examples <- {ex_repo}/AppExamples", file=sys.stderr)
+    print(f"[3/5] Examples <- {ex_repo}/AppExamples", file=sys.stderr)
     examples = collect_examples(ex_repo)
     print(f"      {len(examples)} examples parsed", file=sys.stderr)
 
-    print("[4/4] Cross-linking", file=sys.stderr)
+    print(f"[4/5] Inferred API (gom.script.* + gom.app.*) <- howtos + examples",
+          file=sys.stderr)
+    inferred_fns, attributes = collect_inferred_api(api_repo, ex_repo)
+    # Merge inferred stubs — formal docs always win; only add genuinely new entries.
+    new_stubs = 0
+    for fqn, stub in inferred_fns.items():
+        if fqn not in api:
+            api[fqn] = stub
+            new_stubs += 1
+            # Register in module index so lookup_module / dump_module find them.
+            mm = modules.setdefault(stub.module, ModuleMeta(name=stub.module))
+            if fqn not in mm.functions:
+                mm.functions.append(fqn)
+    for mm in modules.values():
+        mm.functions.sort()
+    print(f"      {new_stubs} new gom.script.* stubs added "
+          f"({len(inferred_fns) - new_stubs} already formally documented)",
+          file=sys.stderr)
+    print(f"      {len(attributes)} gom.app.* attribute chains recorded",
+          file=sys.stderr)
+
+    print("[5/5] Cross-linking", file=sys.stderr)
     crosslink(api, classes, modules, examples, howtos)
 
     linked_ex = sum(1 for e in examples.values() if any(
@@ -1451,8 +1822,10 @@ def main() -> int:
     covered_cls_ht = sum(1 for c in classes.values() if c.mentioned_in_howtos)
     covered_mod_ex = sum(1 for m in modules.values() if m.used_by_examples)
     covered_mod_ht = sum(1 for m in modules.values() if m.mentioned_in_howtos)
+    inferred_count = sum(1 for f in api.values() if f.inferred)
     print(f"      examples linked to corpus: {linked_ex}/{len(examples)}", file=sys.stderr)
-    print(f"      functions covered: {covered_fn_ex} by examples, {covered_fn_ht} by howtos (/{len(api)})",
+    print(f"      functions covered: {covered_fn_ex} by examples, {covered_fn_ht} by howtos "
+          f"(/{len(api)}, {inferred_count} inferred stubs)",
           file=sys.stderr)
     print(f"      classes covered:   {covered_cls_ex} by examples, {covered_cls_ht} by howtos (/{len(classes)})",
           file=sys.stderr)
@@ -1490,6 +1863,8 @@ def main() -> int:
           {k: asdict(v) for k, v in sorted(howtos.items())})
     _dump(args.out / "examples.json",
           {k: asdict(v) for k, v in sorted(examples.items())})
+    _dump(args.out / "attributes.json",
+          {k: asdict(v) for k, v in sorted(attributes.items())})
     _dump(args.out / "corpus_meta.json", meta)
 
     ref = build_referenced_symbols(args.out, args.workspace,

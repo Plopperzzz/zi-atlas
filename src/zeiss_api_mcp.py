@@ -108,6 +108,9 @@ class Corpus:
     # but not present in the documented API (see build_corpus.build_referenced_symbols).
     # Absent on corpora built before that index existed — always guard with .get().
     referenced_symbols: dict[str, dict] = field(default_factory=dict)
+    # gom.app.* attribute chains mined from howtos + examples (attributes.json).
+    # Absent on corpora built before this index existed — always guard with .get().
+    attributes: dict[str, dict] = field(default_factory=dict)
 
     @classmethod
     def load(cls, corpus_dir: Path) -> "Corpus":
@@ -132,6 +135,11 @@ class Corpus:
         if ref_path.exists():
             ref = json.loads(ref_path.read_text(encoding="utf-8"))
             C.referenced_symbols = ref.get("symbols", {}) or {}
+
+        # Optional: load the gom.app.* attribute index.
+        attr_path = corpus_dir / "attributes.json"
+        if attr_path.exists():
+            C.attributes = json.loads(attr_path.read_text(encoding="utf-8")) or {}
 
         # --- Fix #2: populate tags on examples ---
         # Upstream has them empty, so search_by_tag is useless without this.
@@ -364,6 +372,12 @@ class SearchIndex:
             + _tokenize(v.get("content", ""))
         ))
 
+        self._build("attribute", C.attributes, lambda k, v: (
+            _tokenize(k) * 3
+            + _tokenize(v.get("description", ""))
+            + [p.lower() for p in (v.get("access_patterns") or [])]
+        ))
+
     def _build(
         self,
         kind: str,
@@ -460,12 +474,21 @@ def _embed_text_howto(k: str, v: dict) -> str:
     ) if p)
 
 
+def _embed_text_attribute(k: str, v: dict) -> str:
+    return " | ".join(p for p in (
+        k,
+        v.get("description", "") or "",
+        " ".join(v.get("access_patterns") or []),
+    ) if p)
+
+
 _EMBED_BUILDERS: dict[str, Callable[[str, dict], str]] = {
     "function": _embed_text_function,
     "class": _embed_text_class,
     "module": _embed_text_module,
     "example": _embed_text_example,
     "howto": _embed_text_howto,
+    "attribute": _embed_text_attribute,
 }
 
 
@@ -538,6 +561,7 @@ class SemanticIndex:
             "module": C.modules,
             "example": C.examples,
             "howto": C.howtos,
+            "attribute": C.attributes,
         }
         cache_dir = cache_dir or Path(".")
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -752,6 +776,14 @@ def _function_view(C: Corpus, fqn: str, verbose: bool = False) -> dict:
         "return_type": fn["return_type"],
         "api_version": fn["api_version"],
     }
+    if fn.get("inferred"):
+        out["inferred"] = True
+        out["inferred_note"] = (
+            "This entry was inferred from usage in howtos/examples — "
+            "no formal API reference exists. The signature shows observed "
+            "keyword arguments only; positional-only or optional kwargs may "
+            "not be listed. Treat parameters and return type as unverified."
+        )
     if fn["class_fqn"]:
         out["class"] = fn["class_fqn"]
     if fn["extended_description"]:
@@ -762,6 +794,26 @@ def _function_view(C: Corpus, fqn: str, verbose: bool = False) -> dict:
         out["mentioned_in_howtos"] = fn["mentioned_in_howtos"]
     if verbose and fn.get("source_file"):
         out["source_file"] = fn["source_file"]
+    return out
+
+
+def _attribute_view(C: Corpus, chain: str) -> dict:
+    """View for a gom.app.* InferredAttribute record."""
+    attr = C.attributes[chain]
+    out = {
+        "chain": attr["chain"],
+        "root": attr["root"],
+        "description": attr["description"],
+        "access_patterns": attr["access_patterns"],
+        "inferred_note": (
+            "This entry was inferred from usage patterns in howtos/examples. "
+            "It describes a gom.app.* property access chain, not a callable function."
+        ),
+    }
+    if attr.get("mentioned_in_howtos"):
+        out["mentioned_in_howtos"] = attr["mentioned_in_howtos"]
+    if attr.get("used_by_examples"):
+        out["used_by_examples"] = attr["used_by_examples"]
     return out
 
 
@@ -975,6 +1027,42 @@ def build_server(
         return _module_view(C, matches[0])
 
     @mcp.tool()
+    def lookup_attribute(chain: str) -> dict[str, Any]:
+        """Look up a gom.app.* property access chain inferred from howtos/examples.
+
+        Use this when you need to know how to access project data via gom.app.*
+        (e.g. gom.app.project.parts, gom.app.project.inspection) rather than
+        calling a gom.api.* function.
+
+        Accepts full chain (gom.app.project.parts) or suffix (project.parts, parts).
+        Returns description, observed access patterns (e.g. ["['name']", "[index]"]),
+        and cross-references to howtos/examples that demonstrate usage.
+
+        Note: all entries are inferred from usage — no formal API reference exists.
+        """
+        if not C.attributes:
+            return {"error": "attributes.json not found in corpus; rebuild with latest build_corpus.py"}
+
+        # Exact match first.
+        if chain in C.attributes:
+            return _attribute_view(C, chain)
+
+        # Suffix / substring match.
+        cl = chain.lower()
+        matches = [k for k in C.attributes if k == chain or k.endswith("." + chain) or cl in k.lower()]
+        if not matches:
+            return {"error": f"no attribute chain matching {chain!r}"}
+        if len(matches) == 1:
+            return _attribute_view(C, matches[0])
+        # Return candidates sorted by chain length (shorter = more canonical).
+        matches.sort(key=len)
+        return {"candidates": [
+            {"chain": m, "description": C.attributes[m]["description"][:120],
+             "access_patterns": C.attributes[m]["access_patterns"][:4]}
+            for m in matches[:20]
+        ]}
+
+    @mcp.tool()
     def get_example(name: str, full_code: bool = True) -> dict[str, Any]:
         """Retrieve a full ZEISS INSPECT App example.
 
@@ -1037,7 +1125,8 @@ def build_server(
         Searches names, signatures, full example documentation, and function
         extended_description — not just short summaries.
 
-        kind: "all" | "function" | "class" | "module" | "example" | "howto"
+        kind: "all" | "function" | "class" | "module" | "example" | "howto" | "attribute"
+              "attribute" searches gom.app.* property chains inferred from usage.
         mode: "hybrid" (default; reciprocal-rank-fuses BM25 + semantic) |
               "bm25" (lexical only; best for known FQNs / exact tokens) |
               "semantic" (dense only; best for paraphrase / concept queries).
@@ -1049,15 +1138,17 @@ def build_server(
             "mode": mode if INDEX.has_semantic or mode == "bm25" else "bm25",
             "semantic_available": INDEX.has_semantic,
         }
-        wanted = (["function", "class", "module", "example", "howto"]
+        wanted = (["function", "class", "module", "example", "howto", "attribute"]
                   if kind == "all" else [kind])
 
         for k in wanted:
             hits = INDEX.query(k, query, limit, mode=mode)
             if k == "function":
                 out["functions"] = [
-                    {"fqn": f, "signature": C.functions[f]["signature"],
-                     "description": C.functions[f]["description"]}
+                    {"fqn": f,
+                     "signature": C.functions[f]["signature"],
+                     "description": C.functions[f]["description"],
+                     **({"inferred": True} if C.functions[f].get("inferred") else {})}
                     for f in hits
                 ]
             elif k == "class":
@@ -1084,6 +1175,13 @@ def build_server(
                 out["howtos"] = [
                     {"slug": s, "title": C.howtos[s]["title"]}
                     for s in hits
+                ]
+            elif k == "attribute":
+                out["attributes"] = [
+                    {"chain": a,
+                     "description": C.attributes[a]["description"][:150],
+                     "access_patterns": C.attributes[a]["access_patterns"][:4]}
+                    for a in hits
                 ]
         return out
 
@@ -1199,18 +1297,20 @@ def build_server(
         substring filter applied to the name/fqn — pass "imaging" to see
         every symbol whose fqn or name contains "imaging".
 
-        kind: "all" | "function" | "class" | "module" | "example" | "howto"
+        kind: "all" | "function" | "class" | "module" | "example" | "howto" | "attribute"
         limit: per-kind cap (default 1000; bump for large dumps).
         """
         pl = (prefix or "").lower()
-        kinds = (["function", "class", "module", "example", "howto"]
+        kinds = (["function", "class", "module", "example", "howto", "attribute"]
                  if kind == "all" else [kind])
         out: dict[str, Any] = {"prefix": prefix, "kind": kind}
 
         if "function" in kinds:
             hits = sorted(f for f in C.functions if pl in f.lower())[:limit]
             out["functions"] = [
-                {"fqn": f, "description": C.functions[f]["description"]}
+                {"fqn": f,
+                 "description": C.functions[f]["description"],
+                 **({"inferred": True} if C.functions[f].get("inferred") else {})}
                 for f in hits
             ]
         if "class" in kinds:
@@ -1237,6 +1337,12 @@ def build_server(
             out["howtos"] = [
                 {"slug": s, "title": C.howtos[s]["title"]}
                 for s in hits
+            ]
+        if "attribute" in kinds:
+            hits = sorted(a for a in C.attributes if pl in a.lower())[:limit]
+            out["attributes"] = [
+                {"chain": a, "description": C.attributes[a]["description"][:150]}
+                for a in hits
             ]
 
         out["total"] = sum(

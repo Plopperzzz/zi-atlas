@@ -1,0 +1,534 @@
+{
+  "gom.Resource": {
+    "name": "gom.Resource",
+    "description": "",
+    "classes": [
+      "gom.Resource"
+    ],
+    "functions": [],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.addons": {
+    "name": "gom.api.addons",
+    "description": "API for accessing the add-ons currently installed in the running software instance\n\nThis API enables access to the installed add-ons. Information about these add-ons can be\nqueried, add-on files and resources can be read and if the calling instance is a member of\none specific add-on, this specific add-on can be modified on-the-fly and during software\nupdate processes.",
+    "classes": [
+      "gom.api.addons.AddOn"
+    ],
+    "functions": [
+      "gom.api.addons.get_addon",
+      "gom.api.addons.get_current_addon",
+      "gom.api.addons.get_installed_addons"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.dialog": {
+    "name": "gom.api.dialog",
+    "description": "API for handling dialogs\n\nThis API is used to create and execute script based dialogs. The dialogs are defined in a\nJSON based description format and can be executed server side in the native UI style.",
+    "classes": [],
+    "functions": [
+      "gom.api.dialog.create",
+      "gom.api.dialog.execute",
+      "gom.api.dialog.show"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions": {
+    "name": "gom.api.extensions",
+    "description": "API for script based functionality extensions\n\nThis API enables the user to define various element classes which can be used to extend the functionality of\nZEISS INSPECT.",
+    "classes": [
+      "gom.api.extensions.ScriptedCalculationElement",
+      "gom.api.extensions.ScriptedElement",
+      "gom.api.extensions.ScriptedElement.Attribute",
+      "gom.api.extensions.ScriptedElement.Event",
+      "gom.api.extensions.ScriptedElement.WidgetType"
+    ],
+    "functions": [],
+    "used_by_examples": [],
+    "mentioned_in_howtos": [
+      "using_scripted_diagrams.using_scripted_diagrams"
+    ]
+  },
+  "gom.api.extensions.actuals": {
+    "name": "gom.api.extensions.actuals",
+    "description": "Scripted actual elements\n\nThe classes in this module are used to define scripted actual elements. These elements are used to generate\nactuals in the ZEISS INSPECT software and will enable the user to create script defined element types.",
+    "classes": [
+      "gom.api.extensions.actuals.Circle",
+      "gom.api.extensions.actuals.Cone",
+      "gom.api.extensions.actuals.Curve",
+      "gom.api.extensions.actuals.Cylinder",
+      "gom.api.extensions.actuals.Distance",
+      "gom.api.extensions.actuals.Plane",
+      "gom.api.extensions.actuals.Point",
+      "gom.api.extensions.actuals.PointCloud",
+      "gom.api.extensions.actuals.ScriptedActual",
+      "gom.api.extensions.actuals.Section",
+      "gom.api.extensions.actuals.Surface",
+      "gom.api.extensions.actuals.SurfaceCurve",
+      "gom.api.extensions.actuals.SurfaceDefects",
+      "gom.api.extensions.actuals.ValueElement",
+      "gom.api.extensions.actuals.Volume",
+      "gom.api.extensions.actuals.VolumeDefects",
+      "gom.api.extensions.actuals.VolumeDefects2d",
+      "gom.api.extensions.actuals.VolumeRegion",
+      "gom.api.extensions.actuals.VolumeSection",
+      "gom.api.extensions.actuals.VolumeSegmentation"
+    ],
+    "functions": [],
+    "used_by_examples": [],
+    "mentioned_in_howtos": [
+      "custom_elements.custom_nominals_actuals"
+    ]
+  },
+  "gom.api.extensions.inspections": {
+    "name": "gom.api.extensions.inspections",
+    "description": "",
+    "classes": [
+      "gom.api.extensions.inspections.Curve",
+      "gom.api.extensions.inspections.Scalar",
+      "gom.api.extensions.inspections.ScriptedInspection",
+      "gom.api.extensions.inspections.Surface"
+    ],
+    "functions": [],
+    "used_by_examples": [],
+    "mentioned_in_howtos": [
+      "custom_elements.custom_checks"
+    ]
+  },
+  "gom.api.extensions.nominals": {
+    "name": "gom.api.extensions.nominals",
+    "description": "",
+    "classes": [
+      "gom.api.extensions.nominals.Circle",
+      "gom.api.extensions.nominals.Cone",
+      "gom.api.extensions.nominals.Curve",
+      "gom.api.extensions.nominals.Cylinder",
+      "gom.api.extensions.nominals.Distance",
+      "gom.api.extensions.nominals.Plane",
+      "gom.api.extensions.nominals.Point",
+      "gom.api.extensions.nominals.PointCloud",
+      "gom.api.extensions.nominals.ScriptedNominal",
+      "gom.api.extensions.nominals.Section",
+      "gom.api.extensions.nominals.Surface",
+      "gom.api.extensions.nominals.SurfaceCurve",
+      "gom.api.extensions.nominals.ValueElement"
+    ],
+    "functions": [],
+    "used_by_examples": [],
+    "mentioned_in_howtos": [
+      "custom_elements.custom_nominals_actuals"
+    ]
+  },
+  "gom.api.extensions.sequence": {
+    "name": "gom.api.extensions.sequence",
+    "description": "Scripted sequence elements\n\nThis module contains the base class for scripted sequence elements. A scripted sequence element\ncombines a sequence of commands into one group. The group is treated as one single combined element\nwith parts. The resulting cluster of elements can then be edited again as a altogether group, of the\nsingle elements within can be edited separately.",
+    "classes": [
+      "gom.api.extensions.sequence.ScriptedSequenceElement"
+    ],
+    "functions": [],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.views": {
+    "name": "gom.api.extensions.views",
+    "description": "Scripted views\n\nThe classes in this module enable the user to define scripted views. A scripted view implements a model/view\npair, where a Python script fetches data from the ZEISS INSPECT application (model part) and a JavaScript \nrenderer visualizes it in a custom way (view part) inside of a native ZEISS INSPECT view. Also, events can be\nemitted from the JavaScript renderer and processed by the Python script.",
+    "classes": [
+      "gom.api.extensions.views.ScriptedCanvas",
+      "gom.api.extensions.views.ScriptedCanvas.Event",
+      "gom.api.extensions.views.ScriptedEditor",
+      "gom.api.extensions.views.ScriptedEditor.DataTypes",
+      "gom.api.extensions.views.ScriptedView",
+      "gom.api.extensions.views.ScriptedView.Event",
+      "gom.api.extensions.views.ScriptedView.Signal"
+    ],
+    "functions": [],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.imaging": {
+    "name": "gom.api.imaging",
+    "description": "Image point/pixel related functions\n\nImage related functions can be used to query images from the measurements of a project. This is not done directly,\nbut via an ‘image acquisition’ object which acts as a proxy between the image storing data structure and the\nfunctions which can be used to process the image data.\n\nTerminology:\n- 'point': 3D coordinate in the project.\n- 'pixel': 2D coordinate in an image.",
+    "classes": [
+      "gom.api.imaging.Acquisition"
+    ],
+    "functions": [
+      "gom.api.imaging.compute_epipolar_line",
+      "gom.api.imaging.compute_pixels_from_point",
+      "gom.api.imaging.compute_point_from_pixels"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.interpreter": {
+    "name": "gom.api.interpreter",
+    "description": "API for accessing python script interpreter properties\n\nThis API can access properties and states of the python script interpreters. It is used\nmainly for internal debugging and introspection scenarios.",
+    "classes": [],
+    "functions": [
+      "gom.api.interpreter.__enter_multi_element_creation_scope__",
+      "gom.api.interpreter.__exit_multi_element_creation_scope__",
+      "gom.api.interpreter.get_info",
+      "gom.api.interpreter.get_pid"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": [
+      "using_jupyter_notebook.using_jupyter_notebook"
+    ]
+  },
+  "gom.api.introspection": {
+    "name": "gom.api.introspection",
+    "description": "Introspection API for accessing the available API modules, functions and classes\n\nThis API enables access to the API structure in general. It is meant to be mainly for debugging and\ntesting purposes.",
+    "classes": [
+      "gom.api.introspection.Class",
+      "gom.api.introspection.Function",
+      "gom.api.introspection.Method",
+      "gom.api.introspection.Module"
+    ],
+    "functions": [
+      "gom.api.introspection.classes",
+      "gom.api.introspection.modules"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.progress": {
+    "name": "gom.api.progress",
+    "description": "API for accessing the progress bar in the main window\n\nThis API provides basic access to the progress bar in the main window",
+    "classes": [
+      "gom.api.progress.ProgressBar"
+    ],
+    "functions": [],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.project": {
+    "name": "gom.api.project",
+    "description": "Access to project relevant structures\n\nThis module contains functions for accessing project relevant data",
+    "classes": [
+      "gom.api.project.ProgressInformation"
+    ],
+    "functions": [
+      "gom.api.project.create_progress_information",
+      "gom.api.project.get_image_acquisition",
+      "gom.api.project.get_image_acquisitions"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.script_resources": {
+    "name": "gom.api.script_resources",
+    "description": "API for the ResourceDataLoader",
+    "classes": [],
+    "functions": [
+      "gom.api.script_resources.create",
+      "gom.api.script_resources.exists",
+      "gom.api.script_resources.list",
+      "gom.api.script_resources.load",
+      "gom.api.script_resources.mem_size",
+      "gom.api.script_resources.save",
+      "gom.api.script_resources.save_as",
+      "gom.api.script_resources.unload"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.scripted_checks_util": {
+    "name": "gom.api.scripted_checks_util",
+    "description": "Tool functions for scripted checks",
+    "classes": [],
+    "functions": [
+      "gom.api.scripted_checks_util.is_curve_checkable",
+      "gom.api.scripted_checks_util.is_scalar_checkable",
+      "gom.api.scripted_checks_util.is_surface_checkable"
+    ],
+    "used_by_examples": [
+      "ScriptedCurveCheck",
+      "ScriptedSurfaceCheck"
+    ],
+    "mentioned_in_howtos": [
+      "custom_elements.custom_checks"
+    ]
+  },
+  "gom.api.scriptedelements": {
+    "name": "gom.api.scriptedelements",
+    "description": "API for handling scripted elements\n\nThis API defines various functions for handling scripted elements (actuals, inspections, nominal, diagrams, ...)\nIt is used mostly internally by the scripted element framework.",
+    "classes": [],
+    "functions": [
+      "gom.api.scriptedelements.get_dimension_definition",
+      "gom.api.scriptedelements.get_dimensions",
+      "gom.api.scriptedelements.get_inspection_definition"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.selection": {
+    "name": "gom.api.selection",
+    "description": "API for handling explorer selection\n\nThis API defines functions for accessing and manipulating the current selection in the explorer.",
+    "classes": [],
+    "functions": [
+      "gom.api.selection.get_selected_elements"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.services": {
+    "name": "gom.api.services",
+    "description": "API for accessing the script based API extensions (services)\n\nThis API enables access to the script based API endpoint implementations, called 'services'.\nEach service is a script which is started in a server mode and adds various functions and\nendpoints to the ZEISS Inspect API.",
+    "classes": [
+      "gom.api.services.Service"
+    ],
+    "functions": [
+      "gom.api.services.get_services"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": [
+      "using_services.using_services"
+    ]
+  },
+  "gom.api.settings": {
+    "name": "gom.api.settings",
+    "description": "API for storing app related settings persistently\n\nThis API allows reading/writing values into the application configuration permanently. The\nconfiguration is persistent and will survive application restarts. Also, it can be accessed\nvia the applications preferences dialog.\n\nThe configuration entries must be defined in the app's `metainfo.json` file. This configuration\ndefined the available keys, the entry types and the entry properties. If the entry type can be\nrepresented by some widget, the setting entry will also be present in the application's 'preferences'\ndialog and can be adapted interactively there.",
+    "classes": [],
+    "functions": [
+      "gom.api.settings.get",
+      "gom.api.settings.list",
+      "gom.api.settings.set"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": [
+      "app_file_format.app_file_format",
+      "scripting_solutions.scripting_solutions"
+    ]
+  },
+  "gom.api.testing": {
+    "name": "gom.api.testing",
+    "description": "API with testing and verification functions",
+    "classes": [
+      "gom.api.testing.TestObject"
+    ],
+    "functions": [
+      "gom.api.testing.generate_test_object",
+      "gom.api.testing.get_env",
+      "gom.api.testing.reflect",
+      "gom.api.testing.set_env"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.tools": {
+    "name": "gom.api.tools",
+    "description": "API providing a general set of scripting tools\n\nThis API contains a collection of tools that are useful for scripting purposes.",
+    "classes": [
+      "gom.api.tools.MultiElementCreationScope"
+    ],
+    "functions": [],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.script.atos": {
+    "name": "gom.script.atos",
+    "description": "",
+    "classes": [],
+    "functions": [
+      "gom.script.atos.wait_for_sensor_warmup"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.script.automation": {
+    "name": "gom.script.automation",
+    "description": "",
+    "classes": [],
+    "functions": [
+      "gom.script.automation.execute_active_measurement_series"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.script.cad": {
+    "name": "gom.script.cad",
+    "description": "",
+    "classes": [],
+    "functions": [
+      "gom.script.cad.delete_element",
+      "gom.script.cad.edit_element_keywords",
+      "gom.script.cad.hide_element",
+      "gom.script.cad.set_label_position",
+      "gom.script.cad.show_element"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.script.ct": {
+    "name": "gom.script.ct",
+    "description": "",
+    "classes": [],
+    "functions": [
+      "gom.script.ct.get_system_status"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.script.explorer": {
+    "name": "gom.script.explorer",
+    "description": "",
+    "classes": [],
+    "functions": [
+      "gom.script.explorer.apply_selection"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.script.inspection": {
+    "name": "gom.script.inspection",
+    "description": "",
+    "classes": [],
+    "functions": [
+      "gom.script.inspection.create_constant_value_element",
+      "gom.script.inspection.create_distance_by_2_points",
+      "gom.script.inspection.create_some_complex_element_based_on_these_points",
+      "gom.script.inspection.create_some_simple_point",
+      "gom.script.inspection.create_value_element",
+      "gom.script.inspection.measure_by_no_measuring_principle"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.script.part": {
+    "name": "gom.script.part",
+    "description": "",
+    "classes": [],
+    "functions": [
+      "gom.script.part.add_elements_to_part",
+      "gom.script.part.create_new_part"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.script.primitive": {
+    "name": "gom.script.primitive",
+    "description": "",
+    "classes": [],
+    "functions": [
+      "gom.script.primitive.create_line_by_2_points",
+      "gom.script.primitive.create_point"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": [
+      "scripting_legacy_projects.scripting_legacy_projects"
+    ]
+  },
+  "gom.script.report": {
+    "name": "gom.script.report",
+    "description": "",
+    "classes": [],
+    "functions": [
+      "gom.script.report.update_report_page"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.script.scriptedelements": {
+    "name": "gom.script.scriptedelements",
+    "description": "",
+    "classes": [],
+    "functions": [
+      "gom.script.scriptedelements.create_actual",
+      "gom.script.scriptedelements.create_actual_draft"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": [
+      "custom_elements.custom_nominals_actuals"
+    ]
+  },
+  "gom.script.sys": {
+    "name": "gom.script.sys",
+    "description": "",
+    "classes": [],
+    "functions": [
+      "gom.script.sys.change_stage_order",
+      "gom.script.sys.choose_file",
+      "gom.script.sys.close_project",
+      "gom.script.sys.close_stage_range",
+      "gom.script.sys.close_user_defined_dialog",
+      "gom.script.sys.continue_with_some_other_stuff",
+      "gom.script.sys.create_dialog",
+      "gom.script.sys.create_element_by_script",
+      "gom.script.sys.create_measurement_series_for_other_images",
+      "gom.script.sys.create_project",
+      "gom.script.sys.create_some_simple_point",
+      "gom.script.sys.create_stage_range_by_expression",
+      "gom.script.sys.create_user_defined_dialog",
+      "gom.script.sys.delay_script",
+      "gom.script.sys.edit_creation_parameters",
+      "gom.script.sys.execute_script",
+      "gom.script.sys.execute_user_defined_dialog",
+      "gom.script.sys.exit_program",
+      "gom.script.sys.import_g3d",
+      "gom.script.sys.import_gom_inspection_exchange",
+      "gom.script.sys.import_other_images",
+      "gom.script.sys.import_pol",
+      "gom.script.sys.import_project",
+      "gom.script.sys.import_script",
+      "gom.script.sys.import_stl",
+      "gom.script.sys.load_project",
+      "gom.script.sys.open_user_defined_dialog",
+      "gom.script.sys.recalculate_all_elements",
+      "gom.script.sys.recalculate_project",
+      "gom.script.sys.recalculate_visible_elements_in_all_stages",
+      "gom.script.sys.select_assistant_page",
+      "gom.script.sys.set_project_keywords",
+      "gom.script.sys.set_stage_time_stamp",
+      "gom.script.sys.show_next_stage",
+      "gom.script.sys.show_previous_stage",
+      "gom.script.sys.show_stage",
+      "gom.script.sys.show_user_defined_dialog",
+      "gom.script.sys.switch_to_inspection_workspace",
+      "gom.script.sys.switch_to_report_workspace",
+      "gom.script.sys.update_addon_database"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": [
+      "python_api_introduction.selecting_elements",
+      "testing_apps.testing_apps"
+    ]
+  },
+  "gom.script.table": {
+    "name": "gom.script.table",
+    "description": "",
+    "classes": [],
+    "functions": [
+      "gom.script.table.import_table_template",
+      "gom.script.table.switch_template"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.script.userscript": {
+    "name": "gom.script.userscript",
+    "description": "",
+    "classes": [],
+    "functions": [
+      "gom.script.userscript.convert_mesh",
+      "gom.script.userscript.myscript",
+      "gom.script.userscript.tools__convert_mesh"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": [
+      "starting_options.starting_options"
+    ]
+  },
+  "gom.script.view": {
+    "name": "gom.script.view",
+    "description": "",
+    "classes": [],
+    "functions": [
+      "gom.script.view.auto_zoom",
+      "gom.script.view.set_tab_visible",
+      "gom.script.view.show_view_frustum_draft"
+    ],
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  }
+}

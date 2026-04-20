@@ -1,0 +1,813 @@
+{
+  "gom.Resource": {
+    "fqn": "gom.Resource",
+    "module": "gom.Resource",
+    "name": "Resource",
+    "description": "This module represents the Resource class. A utility to access resource data using relative paths and shared memory.",
+    "extended_description": "This module represents the Resource class. A utility to access resource data using relative paths and shared memory.",
+    "methods": [
+      "gom.Resource.__init__",
+      "gom.Resource.byteSize",
+      "gom.Resource.cleanup",
+      "gom.Resource.close",
+      "gom.Resource.exists",
+      "gom.Resource.isLoaded",
+      "gom.Resource.keepInMemory",
+      "gom.Resource.list",
+      "gom.Resource.open",
+      "gom.Resource.save",
+      "gom.Resource.saveAsUserResource"
+    ],
+    "source_file": "doc/python_api/resource_api.md",
+    "used_by_examples": [
+      "ExampleProjects",
+      "PytestTemplate",
+      "ResourceAccess",
+      "ScriptedActualVolumeSection"
+    ],
+    "mentioned_in_howtos": [
+      "python_api_introduction.using_script_resources"
+    ]
+  },
+  "gom.api.addons.AddOn": {
+    "fqn": "gom.api.addons.AddOn",
+    "module": "gom.api.addons",
+    "name": "AddOn",
+    "description": "Class representing a single add-on",
+    "extended_description": "This class represents a single add-on. Properties of that add-on can be queried from here.",
+    "methods": [
+      "gom.api.addons.AddOn.exists",
+      "gom.api.addons.AddOn.get_content_list",
+      "gom.api.addons.AddOn.get_file",
+      "gom.api.addons.AddOn.get_file_list",
+      "gom.api.addons.AddOn.get_id",
+      "gom.api.addons.AddOn.get_level",
+      "gom.api.addons.AddOn.get_name",
+      "gom.api.addons.AddOn.get_required_software_version",
+      "gom.api.addons.AddOn.get_script_list",
+      "gom.api.addons.AddOn.get_tags",
+      "gom.api.addons.AddOn.get_version",
+      "gom.api.addons.AddOn.has_license",
+      "gom.api.addons.AddOn.is_edited",
+      "gom.api.addons.AddOn.is_protected",
+      "gom.api.addons.AddOn.read",
+      "gom.api.addons.AddOn.write"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.ScriptedCalculationElement": {
+    "fqn": "gom.api.extensions.ScriptedCalculationElement",
+    "module": "gom.api.extensions",
+    "name": "ScriptedCalculationElement",
+    "description": "This class is used to define a scripted calculation element which calculated its own data. It is used as a\nbase class for scripted actual, nominals and checks.",
+    "extended_description": "**Working with stages**\n\nEach scripted element must be computed for one or more stages. In the case of a preview or\nfor simple project setups, computation is usually done for a single stage only. In case of\na recalc, computation for many stages is usually required. To support both cases and keep it\nsimple for beginners, the scripted elements are using two computation functions:\n\n- `compute ()`:       Computes the result for one single stage only. If nothing else is implemented,\n                      this function will be called for each stage one by one and return the computed\n                      value for that stage only. The stage for which the computation is performed is\n                      passed via the function's script context, but does usually not matter as all input\n                      values are already associated with that single stage.\n- `compute_stages ()`: Computes the results for many (all) stages at once. The value parameters are\n                       always vectors of the same size, one entry per stage. This is the case even if\n                       there is just one stage in the project. The result is expected to be a result\n                       vector of the same size as these stage vectors. The script context passed to that\n                       function will contain a list of stages of equal size matching the value's stage\n                       ordering.\n\nSo for a project with stages, it is usually sufficient to just implement `compute ()`. For increased\nperformance or parallelization, `compute_stages ()` can then be implemented as a second step.\n\n**Stage indexing**\n\nStages are represented by an integer index. No item reference or other resolvable types like\n`gom.script.project[...].stages['Stage #1']` are used because it is assumed that reaching over stage borders into\nother stages' data domain will lead to incorrect or missing dependencies. Instead, if vectorized data or data tensors\nare fetched, the stage sorting within that object will match that stages vector in the context. In the best case, the\nstage vector is just a consecutive range of numbers `(0, 1, 2, 3, ...)` which match the index in a staged tensor.\nNevertheless, the vector can be number entirely different depending on active/inactive stages, stage sorting, ...\n\n```{caution}\nUsually, it is *not* possible to access arbitrary stages of other elements due to recalc restrictions !\n```",
+    "methods": [
+      "gom.api.extensions.ScriptedCalculationElement.__init__",
+      "gom.api.extensions.ScriptedCalculationElement.compute",
+      "gom.api.extensions.ScriptedCalculationElement.compute_stage",
+      "gom.api.extensions.ScriptedCalculationElement.compute_stages"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.ScriptedElement": {
+    "fqn": "gom.api.extensions.ScriptedElement",
+    "module": "gom.api.extensions",
+    "name": "ScriptedElement",
+    "description": "Base class for all scripted elements",
+    "extended_description": "This class is the base class for all scripted element types . A scripted element is a user defined\nelement type where configuration and computation are happening entirely in a Python script, so user\ndefined behavior and visualization can be implemented.\n\n**Element id**\n\nEvery element must have a unique id. It is left to the implementer to avoid inter app conflicts here. The\nid can be hierarchical like `company.topic.group.element_type`. The id may only contain lower case characters,\ngrouping dots and underscores.\n\n**Element category**\n\nThe category of an element type is used to find the application side counterpart which cares for the\nfunctionality implementation. For example, `scriptedelement.actual` links that element type the application\ncounterpart which cares for scripted actual elements and handles its creation, editing, administration, ...",
+    "methods": [
+      "gom.api.extensions.ScriptedElement.__init__",
+      "gom.api.extensions.ScriptedElement.add_log_message",
+      "gom.api.extensions.ScriptedElement.apply_dialog",
+      "gom.api.extensions.ScriptedElement.check_list",
+      "gom.api.extensions.ScriptedElement.check_target_element",
+      "gom.api.extensions.ScriptedElement.check_value",
+      "gom.api.extensions.ScriptedElement.dialog",
+      "gom.api.extensions.ScriptedElement.event",
+      "gom.api.extensions.ScriptedElement.event_handler",
+      "gom.api.extensions.ScriptedElement.finish",
+      "gom.api.extensions.ScriptedElement.initialize_dialog",
+      "gom.api.extensions.ScriptedElement.is_visible",
+      "gom.api.extensions.ScriptedElement.show_dialog"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.ScriptedElement.Attribute": {
+    "fqn": "gom.api.extensions.ScriptedElement.Attribute",
+    "module": "gom.api.extensions",
+    "name": "Attribute",
+    "description": "Attributes used in the dialog definition",
+    "extended_description": "The attributes are used to define the dialog widgets and their behavior. A selected set of these\nattributes are listed here as a central reference and for unified constant value access.",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.ScriptedElement.Event": {
+    "fqn": "gom.api.extensions.ScriptedElement.Event",
+    "module": "gom.api.extensions",
+    "name": "Event",
+    "description": "Event types passed to the `event ()` function",
+    "extended_description": "- `DIALOG_INITIALIZE`: Sent when the dialog has been initialized and made visible\n- `DIALOG_CHANGED`:    A dialog widget value changed",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.ScriptedElement.WidgetType": {
+    "fqn": "gom.api.extensions.ScriptedElement.WidgetType",
+    "module": "gom.api.extensions",
+    "name": "WidgetType",
+    "description": "(Selected) widget types used in the dialog definition",
+    "extended_description": "The widget types are used to define the dialog widgets and their behavior. A selected set of these\nwidget types are listed here as a central reference and for unified constant value access.",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.Circle": {
+    "fqn": "gom.api.extensions.actuals.Circle",
+    "module": "gom.api.extensions.actuals",
+    "name": "Circle",
+    "description": "Scripted actual circle element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"center\"   : (x: float, y: float, z: float), // Centerpoint of the circle\n    \"direction\": (x: float, y: float, z: float), // Direction/normal of the circle\n    \"radius\"   : r: float,                       // Radius of the circle\n    \"data\": {...}                                // Optional element data, stored with the element\n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.Cone": {
+    "fqn": "gom.api.extensions.actuals.Cone",
+    "module": "gom.api.extensions.actuals",
+    "name": "Cone",
+    "description": "Scripted actual cone element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"point1\": (x: float, y: float, z: float), // First point of the cone (circle center)\n    \"radius1\": r1: float,                     // Radius of the first circle\n    \"point2\": (x: float, y: float, z: float), // Second point of the cone (circle center)\n    \"radius2\": r2: float,                     // Radius of the second circle\n    \"data\": {...}                             // Optional element data, stored with the element\n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.Curve": {
+    "fqn": "gom.api.extensions.actuals.Curve",
+    "module": "gom.api.extensions.actuals",
+    "name": "Curve",
+    "description": "Scripted actual curve element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"plane\": p: Plane, // Plane of the curve (optional)\n    \"curves\": [Curve], // List of curves\n    \"data\": {...}      // Optional element data, stored with the element        \n}\n```\n\nThe format of the `Curve` object is:\n\n```\n{\n    \"points\": [(x: float, y: float, z: float), ...]\n}\n```\n\nSee the `Plane` element for the formats of the plane object.",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.Cylinder": {
+    "fqn": "gom.api.extensions.actuals.Cylinder",
+    "module": "gom.api.extensions.actuals",
+    "name": "Cylinder",
+    "description": "Scripted actual cylinder element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"center\": (x: float, y: float, z: float),    // Center point of the cylinder\n    \"direction\": (x: float, y: float, z: float), // Direction of the cylinder\n    \"radius\": r: float,                          // Radius of the cylinder\n    \"data\": {...}                                // Optional element data, stored with the element\n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.Distance": {
+    "fqn": "gom.api.extensions.actuals.Distance",
+    "module": "gom.api.extensions.actuals",
+    "name": "Distance",
+    "description": "Scripted actual distance element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"point1\": (x: float, y: float, z: float), // First point of the distance\n    \"point2\": (x: float, y: float, z: float), // Second point of the distance\n    \"data\": {...}                             // Optional element data, stored with the element\n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.Plane": {
+    "fqn": "gom.api.extensions.actuals.Plane",
+    "module": "gom.api.extensions.actuals",
+    "name": "Plane",
+    "description": "Scripted actual plane element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"normal\": (x: float, y: float, z: float), // Normal direction of the plane\n    \"point\": (x: float, y: float, z: float),  // One point of the plane\n    \"data\": {...}                             // Optional element data, stored with the element        \n}\n```\n\nor \n\n```\n{\n    \"point1\": (x: float, y: float, z: float), // Point 1 of the plane\n    \"point2\": (x: float, y: float, z: float), // Point 2 of the plane\n    \"point3\": (x: float, y: float, z: float), // Point 3 of the plane\n    \"data\": {...}                             // Optional element data, stored with the element        \n}\n```\n\nor\n\n```\n{\n    \"plane\": Reference, // Reference to another plane element\n    \"data\": {...}       // Optional element data, stored with the element\n\n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.Point": {
+    "fqn": "gom.api.extensions.actuals.Point",
+    "module": "gom.api.extensions.actuals",
+    "name": "Point",
+    "description": "Scripted actual point element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"value\": (x: float, y: float, z: float), // The point in 3D space.\n    \"data\": {...}                            // Optional element data, stored with the element\n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": [
+      "custom_elements.custom_nominals_actuals"
+    ]
+  },
+  "gom.api.extensions.actuals.PointCloud": {
+    "fqn": "gom.api.extensions.actuals.PointCloud",
+    "module": "gom.api.extensions.actuals",
+    "name": "PointCloud",
+    "description": "Scripted actual point cloud element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"points\":  [(x: float, y: float, z: float), ...], // List of points\n    \"normals\": [(x: float, y: float, z: float), ...], // List of normals for each point\n    \"data\": {...}                                     // Optional element data, stored with the element        \n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.ScriptedActual": {
+    "fqn": "gom.api.extensions.actuals.ScriptedActual",
+    "module": "gom.api.extensions.actuals",
+    "name": "ScriptedActual",
+    "description": "This class is the base class for all scripted actuals",
+    "extended_description": "",
+    "methods": [
+      "gom.api.extensions.actuals.ScriptedActual.__init__"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.Section": {
+    "fqn": "gom.api.extensions.actuals.Section",
+    "module": "gom.api.extensions.actuals",
+    "name": "Section",
+    "description": "Scripted actual section element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"curves\": [Curve],\n    \"plane\": Plane,\n    \"cone\": Cone,\n    \"cylinder\": Cylinder,\n    \"data\": {...}          // Optional element data, stored with the element        \n}\n```\n\nThe format of the `Curve` object is:\n\n```\n{\n    \"points\":  [(x: float, y: float, z: float), ...] // List of points\n    \"normals\": [(x: float, y: float, z: float), ...] // List of normals for each point\n}\n```\n\nSee the `Plane`, `Cone` and `Cylinder` element for the formats of the plane, cone and cylinder object.",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.Surface": {
+    "fqn": "gom.api.extensions.actuals.Surface",
+    "module": "gom.api.extensions.actuals",
+    "name": "Surface",
+    "description": "Scripted actual surface element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"vertices\":  [(x: float, y: float, z: float), ...], // List of vertices\n    \"triangles\": [(i1: int, i2: int, i3: int), ...],    // List of triangles (vertices' indices)\n    \"data\": {...}                                       // Optional element data, stored with the element        \n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.SurfaceCurve": {
+    "fqn": "gom.api.extensions.actuals.SurfaceCurve",
+    "module": "gom.api.extensions.actuals",
+    "name": "SurfaceCurve",
+    "description": "Scripted actual surface curve element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"curves\": [Curve], // Curve definition\n    \"data\": {...}      // Optional element data, stored with the element        \n}\n```\n\nThe format of the `Curve` object is:\n\n```\n{\n    \"points\":  [(x: float, y: float, z: float), ...] // List of points\n    \"normals\": [(x: float, y: float, z: float), ...] // List of normals for each point\n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.SurfaceDefects": {
+    "fqn": "gom.api.extensions.actuals.SurfaceDefects",
+    "module": "gom.api.extensions.actuals",
+    "name": "SurfaceDefects",
+    "description": "Scripted actual surface defects element",
+    "extended_description": "",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.ValueElement": {
+    "fqn": "gom.api.extensions.actuals.ValueElement",
+    "module": "gom.api.extensions.actuals",
+    "name": "ValueElement",
+    "description": "Scripted actual value element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"value\": v: float, // Value of the element\n    \"data\": {...}      // Optional element data, stored with the element        \n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.Volume": {
+    "fqn": "gom.api.extensions.actuals.Volume",
+    "module": "gom.api.extensions.actuals",
+    "name": "Volume",
+    "description": "Scripted actual volume element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    'voxel_data': data: np.array (shape=(x, y, z), dtype=np.float32), // Voxels of the volume\n    'transformation': (x: float, y: float, z: float),                 // Transformation of the volume\n    \"data\": {...}                                      // Optional element data, stored with the element        \n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.VolumeDefects": {
+    "fqn": "gom.api.extensions.actuals.VolumeDefects",
+    "module": "gom.api.extensions.actuals",
+    "name": "VolumeDefects",
+    "description": "Scripted actual volume defects element",
+    "extended_description": "",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.VolumeDefects2d": {
+    "fqn": "gom.api.extensions.actuals.VolumeDefects2d",
+    "module": "gom.api.extensions.actuals",
+    "name": "VolumeDefects2d",
+    "description": "Scripted actual 2d volume defects element",
+    "extended_description": "",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.VolumeRegion": {
+    "fqn": "gom.api.extensions.actuals.VolumeRegion",
+    "module": "gom.api.extensions.actuals",
+    "name": "VolumeRegion",
+    "description": "Scripted actual volume region element",
+    "extended_description": "",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": [
+      "custom_elements.custom_nominals_actuals"
+    ]
+  },
+  "gom.api.extensions.actuals.VolumeSection": {
+    "fqn": "gom.api.extensions.actuals.VolumeSection",
+    "module": "gom.api.extensions.actuals",
+    "name": "VolumeSection",
+    "description": "Scripted actual volume section element",
+    "extended_description": "",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.actuals.VolumeSegmentation": {
+    "fqn": "gom.api.extensions.actuals.VolumeSegmentation",
+    "module": "gom.api.extensions.actuals",
+    "name": "VolumeSegmentation",
+    "description": "Scripted actual volume segmentation element",
+    "extended_description": "",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.inspections.Curve": {
+    "fqn": "gom.api.extensions.inspections.Curve",
+    "module": "gom.api.extensions.inspections",
+    "name": "Curve",
+    "description": "Scripted curve inspection",
+    "extended_description": "Please see the base class `ScriptedInspection` for a discussion of the properties all scripted inspection types\nhave in common.\n\n**Return value**\n\nThe expected parameters from the elements `self.compute ()` function is a map with the following format:\n\n```\n{\n    \"actual_values\": [float, ...]  // Deviations\n    \"nominal_values\": [float, ...] // Nominal values\n\n     ...or alternatively...\n\n    \"nominal_value\": float,        // Alternative: Single common nominal value\n    \"target_element\": gom.Item,    // Inspected element\n    \"data\": {...}                  // Optional element data, stored with the element\n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.inspections.Scalar": {
+    "fqn": "gom.api.extensions.inspections.Scalar",
+    "module": "gom.api.extensions.inspections",
+    "name": "Scalar",
+    "description": "Scripted scalar inspection",
+    "extended_description": "Please see the base class `ScriptedInspection` for a discussion of the properties all scripted inspection types\nhave in common.\n\n**Return value**\n\nThe expected parameters from the element's `self.compute ()` function is a map with the following format:\n\n```\n{\n    \"nominal\": float,           // Nominal value\n    \"actual\": float,            // Actual value\n    \"target_element\": gom.Item, // Inspected element\n    \"data\": {...}               // Optional element data, stored with the element\n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": [
+      "custom_elements.custom_checks"
+    ]
+  },
+  "gom.api.extensions.inspections.ScriptedInspection": {
+    "fqn": "gom.api.extensions.inspections.ScriptedInspection",
+    "module": "gom.api.extensions.inspections",
+    "name": "ScriptedInspection",
+    "description": "This class is the base class for all scripted inspections",
+    "extended_description": "Scripted inspections are used to inspect elements in the 3D view, like scalar, surface or curve inspections.\nThere are specialized classes for each inspection type, like `Scalar`, `Surface` or `Curve`, which inherit from this\nclass. The `ScriptedInspection` class is used to define the common properties of all scripted inspections.\n\n**The target element**\n\nThe `self.compute ()` function of every scripted inspection expects a `target_element` value which is the element\nwhich is inspected by the check. This inspected element is usually queried in the checks dialog, but can also be\nor depend on the currently selected element in the 3D view. So the return parameter of the `self.compute ()`\nfunction looks like this:\n\n```\n{\n    \"target_element\": my_dialog.element_selector.value, # The inspected element as selected in a dialog widget\n    \"data\": {...}                                       # Optional data, stored with the element\n    ...                                                 # Specific data required by the inspection type\n}\n```\n\nTo avoid background magic, the `target_element` must be explicitly returned by the `self.compute ()` function and\nthere is no automatic insertion of a possibly selected element. So if the check should inspect the currently\nselected element in the 3D view, this must be coded explicitly in the `self.compute ()` function:\n\n```\nimport gom.api.selection\n\ndef compute (self, context, values):\n    selected = gom.api.selection.get_selected_elements()\n    if len (selected) != 1:\n        raise ValueError(\"Please select exactly one element to inspect\")\n\n    return {\n        \"target_element\": selected[0],\n        \"data\": {},                                      # Optional data, stored with the element\n        ...                                              # Specific data required by the check type\n    }\n```",
+    "methods": [
+      "gom.api.extensions.inspections.ScriptedInspection.__init__"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.inspections.Surface": {
+    "fqn": "gom.api.extensions.inspections.Surface",
+    "module": "gom.api.extensions.inspections",
+    "name": "Surface",
+    "description": "Scripted surface inspection",
+    "extended_description": "Please see the base class `ScriptedInspection` for a discussion of the properties all scripted inspection types\nhave in common.\n\n**Return value**\n\nThe expected parameters from the element's `self.compute ()` function is a map with the following format:\n\n```\n{\n    \"deviation_values\": [v: float, v: float, ...] // Deviations\n    \"nominal\": float,                             // Nominal value\n    \"target_element\": gom.Item,                   // Inspected element\n    \"data\": {...}                                 // Optional element data, stored with the element\n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.nominals.Circle": {
+    "fqn": "gom.api.extensions.nominals.Circle",
+    "module": "gom.api.extensions.nominals",
+    "name": "Circle",
+    "description": "Scripted nominal circle element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"center\"   : (x: float, y: float, z: float), // Centerpoint of the circle\n    \"direction\": (x: float, y: float, z: float), // Direction/normal of the circle\n    \"radius\"   : r: float,                       // Radius of the circle\n    \"data\": {...}                                // Optional element data, stored with the element        \n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.nominals.Cone": {
+    "fqn": "gom.api.extensions.nominals.Cone",
+    "module": "gom.api.extensions.nominals",
+    "name": "Cone",
+    "description": "Scripted nominal cone element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"point1\": (x: float, y: float, z: float), // First point of the cone (circle center)\n    \"radius1\": r1: float,                     // Radius of the first circle\n    \"point2\": (x: float, y: float, z: float), // Second point of the cone (circle center)\n    \"radius2\": r2: float,                     // Radius of the second circle\n    \"data\": {...}                             // Optional element data, stored with the element        \n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.nominals.Curve": {
+    "fqn": "gom.api.extensions.nominals.Curve",
+    "module": "gom.api.extensions.nominals",
+    "name": "Curve",
+    "description": "Scripted nominal curve element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"plane\": p: Plane  // Plane of the curve (optional)\n    \"curves\": [Curve], // List of curves\n    \"data\": {...}      // Optional element data, stored with the element        \n}\n```\n\nThe format of the `Curve` object is:\n\n```\n{\n    \"points\": [(x: float, y: float, z: float), ...] // List of points\n}\n```\n\nSee the `Plane` element for the formats of the plane object.",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.nominals.Cylinder": {
+    "fqn": "gom.api.extensions.nominals.Cylinder",
+    "module": "gom.api.extensions.nominals",
+    "name": "Cylinder",
+    "description": "Scripted nominal cylinder element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"point\": (x: float, y: float, z: float),     // Base point of the cylinder\n    \"direction\": (x: float, y: float, z: float), // Direction of the cylinder\n    \"radius\": r: float,                          // Radius of the cylinder\n    \"data\": {...}                                // Optional element data, stored with the element        \n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.nominals.Distance": {
+    "fqn": "gom.api.extensions.nominals.Distance",
+    "module": "gom.api.extensions.nominals",
+    "name": "Distance",
+    "description": "Scripted nominal distance element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"point1\": (x: float, y: float, z: float), // First point of the distance\n    \"point2\": (x: float, y: float, z: float), // Second point of the distance\n    \"data\": {...}                             // Optional element data, stored with the element       \n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.nominals.Plane": {
+    "fqn": "gom.api.extensions.nominals.Plane",
+    "module": "gom.api.extensions.nominals",
+    "name": "Plane",
+    "description": "Scripted nominal plane element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"normal\": (x: float, y: float, z: float), // Normal of the plane\n    \"distance\": d: float,                     // Distance of the plane\n    \"data\": {...}                             // Optional element data, stored with the element        \n}\n```\n\nor \n\n```\n{\n    \"target\": plane: Plane,  // Source plane point of this plane\n    \"offset\": offset: float, // Offset relative to the source place\n    \"data\": {...}            // Optional element data, stored with the element        \n}\n```\n\nor\n\n```\n{\n    \"plane\": Reference, // Reference to another plane element of coordinate system\n    \"data\": {...}       // Optional element data, stored with the element\n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.nominals.Point": {
+    "fqn": "gom.api.extensions.nominals.Point",
+    "module": "gom.api.extensions.nominals",
+    "name": "Point",
+    "description": "Scripted nominal point element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"value\": (x: float, y: float, z: float), // The point in 3D space.\n    \"data\": {...}                            // Optional element data, stored with the element        \n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": [
+      "custom_elements.custom_nominals_actuals"
+    ]
+  },
+  "gom.api.extensions.nominals.PointCloud": {
+    "fqn": "gom.api.extensions.nominals.PointCloud",
+    "module": "gom.api.extensions.nominals",
+    "name": "PointCloud",
+    "description": "Scripted nominal point cloud element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"points\":  [(x: float, y: float, z: float), ...], // List of points\n    \"normals\": [(x: float, y: float, z: float), ...], // List of normals for each point\n    \"data\": {...}                                     // Optional element data, stored with the element        \n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.nominals.ScriptedNominal": {
+    "fqn": "gom.api.extensions.nominals.ScriptedNominal",
+    "module": "gom.api.extensions.nominals",
+    "name": "ScriptedNominal",
+    "description": "This class is the base class for all scripted nominals",
+    "extended_description": "",
+    "methods": [
+      "gom.api.extensions.nominals.ScriptedNominal.__init__"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.nominals.Section": {
+    "fqn": "gom.api.extensions.nominals.Section",
+    "module": "gom.api.extensions.nominals",
+    "name": "Section",
+    "description": "Scripted nominal section element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"curves\": [Curve],\n    \"plane\": Plane,\n    \"cone\": Cone,\n    \"cylinder\": Cylinder,\n    \"data\": {...}         // Optional element data, stored with the element        \n}\n```\n\nThe format of the `Curve` object is:\n\n```\n{\n    \"points\":  [(x: float, y: float, z: float), ...] // List of points\n    \"normals\": [(x: float, y: float, z: float), ...] // List of normals for each point\n}\n```\n\nSee the `Plane`, `Cone` and `Cylinder` element for the formats of the plane, cone and cylinder object.",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.nominals.Surface": {
+    "fqn": "gom.api.extensions.nominals.Surface",
+    "module": "gom.api.extensions.nominals",
+    "name": "Surface",
+    "description": "Scripted nominal surface element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"vertices\":  [(x: float, y: float, z: float), ...], // List of vertices\n    \"triangles\": [(i1: int, i2: int, i3: int), ...],    // List of triangles (vertices indices)\n    \"data\": {...}                                       // Optional element data, stored with the element\n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.nominals.SurfaceCurve": {
+    "fqn": "gom.api.extensions.nominals.SurfaceCurve",
+    "module": "gom.api.extensions.nominals",
+    "name": "SurfaceCurve",
+    "description": "Scripted nominal surface curve element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"curves\": [Curve], // Curves\n    \"data\": {...}      // Optional element data, stored with the element        \n}\n```\n\nThe format of the `Curve` object is:\n\n```\n{\n    \"points\":  [(x: float, y: float, z: float), ...] // List of points\n    \"normals\": [(x: float, y: float, z: float), ...] // List of normals for each point\n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.nominals.ValueElement": {
+    "fqn": "gom.api.extensions.nominals.ValueElement",
+    "module": "gom.api.extensions.nominals",
+    "name": "ValueElement",
+    "description": "Scripted nominal value element",
+    "extended_description": "The expected parameters from the element's `compute ()` function is a map with the following format:\n\n```\n{\n    \"value\": v: float, // Value of the element\n    \"data\": {...}      // Optional element data, stored with the element        \n}\n```",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.sequence.ScriptedSequenceElement": {
+    "fqn": "gom.api.extensions.sequence.ScriptedSequenceElement",
+    "module": "gom.api.extensions.sequence",
+    "name": "ScriptedSequenceElement",
+    "description": "This class is used to define a scripted sequence element",
+    "extended_description": "",
+    "methods": [
+      "gom.api.extensions.sequence.ScriptedSequenceElement.__init__",
+      "gom.api.extensions.sequence.ScriptedSequenceElement.create",
+      "gom.api.extensions.sequence.ScriptedSequenceElement.edit",
+      "gom.api.extensions.sequence.ScriptedSequenceElement.generate_element_name"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.views.ScriptedCanvas": {
+    "fqn": "gom.api.extensions.views.ScriptedCanvas",
+    "module": "gom.api.extensions.views",
+    "name": "ScriptedCanvas",
+    "description": "This class is the base class for all scripted views",
+    "extended_description": "A scripted view is a view that is embedded into the native ZEISS INSPECT application, but\nits content is rendered by a JavaScript renderer fetching its data from a Python service. Both\nthese parts form a model/view pair where the model (the python script) fetches and processes\nthe data from the ZEISS INSPECT application, while the view (the JavaScript renderer) visualizes\nit in a custom way.\n\nThe purpose of the `ScriptedView` class now on the one hand is to provide the model, on the other\nhand to bring both parts together.\n\n**Identification**\n\nA scripted view is identified by its `id` string. This string must be globally unique, as the scripted\nview code can be part of an app, which shared its id space with other apps installed on the same system.\nIt is advised to use a reverse domain name notation for the id, e.g. `com.mycompany.myapp.myview`.\n\n**Implementation**\n\nA very simple example for a scripted view API contribution can look like this:\n\n```{code-block} python\n:caption: Example of a simple scripted view definition\n\nimport gom\nimport gom.api.extensions.views\n\nfrom gom import apicontribution\n\n@apicontribution\nclass MyScriptedView (gom.api.extensions.views.ScriptedView):\n\n    def __init__(self):\n        super().__init__(id='com.zeiss.testing.scriptedview',\n                         description='My Scripted View',\n                         renderer='renderers/MyRenderer.js',\n                         functions=[\n                             self.get_data\n                         ],\n                         bundle='npms/MyScriptedView.js')\n\n    def get_data(self):\n        return {\n            'text': 'Hello World'\n        }\n\ngom.run_api ())    \n```\n\nHere, the scripted view\n\n- has the id `com.zeiss.testing.scriptedview`\n- is named `My Scripted View` in menus etc.\n- exposes the class function `get_data` as a callable function to the JavaScript renderer\n- uses the renderer script `renderers/MyRenderer.js` to visualize the data.\n\nThe JavaScript renderer can call the `get_data` function to get the data to visualize in a custom way\nvia the `gom.bridge` object:\n\n```{code-block} javascript\n:caption: Accessing data via the scripting bridge from Python\n\nfunction renderer () {\n    var data = gom.bridge.get_data();\n    console.log(data.text);\n}\n```\n\n**Event handling**\n\nThe JavaScript renderer can emit events which can then be processed by the python side. There are a few system \nevents, but the renderer itself can produce custom events. The `event` instance method is called by the JavaScript \nrenderer in effect in case of en event. It can be overwritten in custom scripted view implementations:\n\n```{code-block} python\n:caption: Example of a scripted view with event handling\n\n...\n@apicontribution\nclass MyScriptedView (gom.api.extensions.views.ScriptedView):\n    ...\n    def event(self, event: str, args: Any):\n        if event == self.Event.INITIALIZED:\n            print('View initialized')\n```\n\nOn the JavaScript side, the event can be emitted like this:\n\n```{code-block} javascript\n:caption: Emitting events from the JavaScript renderer\n\nfunction renderer () {\n    gom.emitEvent('my::custom::event', 'Hello World');\n}\n```\n\n**Using 3rd party modules**\n\n```{caution}\nPlease be aware of the necessary FOSS and copyright issues when using 3rd party modules in your apps !\n```\n\nJavaScript strongly related to 3rd party modules, for example from node.js. The `bundle` property\nallows to specify a NPM bundle that is used by the JavaScript renderer. The bundle must be present\nas a single file in the `npms` folder of the app. The JavaScript renderer can use this bundle to load 3rd party\nmodules. If present, that bundle will be inserted into the JavaScript engine before the renderer process is\nstarted.\n\nJavaScript bundles can be creates in various ways, for example via a webpack build. Without going too much into\ndetail about the node.js/npm foundations, the following example shows how to create a simple 'react' module bundle\nusing node.js and webpack.\n\n```{code-block} json\n:caption: Example of a package.json file for bundle creation\n\n    \"name\": \"app-module-bundle\",\n    \"version\": 1,\n    \"description\": \"App module bundle\",\n    \"private\": true,\n    \"scripts\": {\n        \"build\": \"webpack --mode production\"\n    },\n    \"dependencies\": {\n        \"react\": \"^18.2.0\",\n        \"react-dom\": \"^18.2.0\",\n        \"react-scripts\": \"^5.0.1\"            \n    },\n    \"devDependencies\": {\n        \"webpack\": \"^5.88.2\",\n        \"webpack-cli\": \"^5.1.4\"\n    }\n```\n\nThen, a `webpack.config.js` like the following has to be added:\n\n```{code-block} javascript\n:caption: Example of a webpack.config.js file for bundle creation\n\nconst path = require('path');\n\nmodule.exports = {\n    mode: process.env.NODE_ENV || 'production',\n    entry: './src/index.js',\n    output: {\n        path: __dirname + '/dist',\n        filename: 'bundle.js',\n        library: {\n        name: '\"\"\" + project_title.replace(' ', '') + \"\"\"Bundle',\n        type: 'umd',\n        export: 'default'\n        },\n        globalObject: 'this'\n    },\n    // We want to bundle all modules together\n    optimization: {\n        minimize: true\n    }\n};    \n```\n\nPlease refer to the `node.js` and `webpack` documentation for more details on how to create a bundle. Additionally,\nhave a look into the app examples for a more detailed example as a starting point for your own scripted views.",
+    "methods": [
+      "gom.api.extensions.views.ScriptedCanvas.__init__"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.views.ScriptedCanvas.Event": {
+    "fqn": "gom.api.extensions.views.ScriptedCanvas.Event",
+    "module": "gom.api.extensions.views",
+    "name": "Event",
+    "description": "Event types passed to the `event ()` function",
+    "extended_description": "- `INITIALIZED`: Sent when the view has been initialized",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.views.ScriptedEditor": {
+    "fqn": "gom.api.extensions.views.ScriptedEditor",
+    "module": "gom.api.extensions.views",
+    "name": "ScriptedEditor",
+    "description": "",
+    "extended_description": "",
+    "methods": [
+      "gom.api.extensions.views.ScriptedEditor.extract_data",
+      "gom.api.extensions.views.ScriptedEditor.get_data_types",
+      "gom.api.extensions.views.ScriptedEditor.prepare_data"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.views.ScriptedEditor.DataTypes": {
+    "fqn": "gom.api.extensions.views.ScriptedEditor.DataTypes",
+    "module": "gom.api.extensions.views",
+    "name": "DataTypes",
+    "description": "Data types that can be returned by get_data_types () and are used to determine the load mechanism for each file of an app content",
+    "extended_description": "- `NONE`: Do **not** load data from the file\n- `JSON`: Load data as JSON format, i.e., as a 'dict'\n- `STRING`: Load data as plain string\n- `BYTES`: Load data as pure bytes array",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.views.ScriptedView": {
+    "fqn": "gom.api.extensions.views.ScriptedView",
+    "module": "gom.api.extensions.views",
+    "name": "ScriptedView",
+    "description": "",
+    "extended_description": "",
+    "methods": [
+      "gom.api.extensions.views.ScriptedView.__init__",
+      "gom.api.extensions.views.ScriptedView.event"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.views.ScriptedView.Event": {
+    "fqn": "gom.api.extensions.views.ScriptedView.Event",
+    "module": "gom.api.extensions.views",
+    "name": "Event",
+    "description": "Event types passed to the `event ()` function",
+    "extended_description": "- `INITIALIZED`: Sent when the view has been initialized",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.extensions.views.ScriptedView.Signal": {
+    "fqn": "gom.api.extensions.views.ScriptedView.Signal",
+    "module": "gom.api.extensions.views",
+    "name": "Signal",
+    "description": "Identifier for SW signals that the view can be connected to",
+    "extended_description": "- `DATA_CHANGED`: Emitted when any project related data changes\n- `SELECTION_CHANGED`: Emitted when the selection in the Project explorer changes\n- `CONFIG_CHANGED`: Emitted when the software preferences are applied",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.imaging.Acquisition": {
+    "fqn": "gom.api.imaging.Acquisition",
+    "module": "gom.api.imaging",
+    "name": "Acquisition",
+    "description": "Class representing a single acquisition",
+    "extended_description": "An acquisition describes a camera position and viewing direction of a measurement.",
+    "methods": [
+      "gom.api.imaging.Acquisition.get_angle",
+      "gom.api.imaging.Acquisition.get_coordinate"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.introspection.Class": {
+    "fqn": "gom.api.introspection.Class",
+    "module": "gom.api.introspection",
+    "name": "Class",
+    "description": "Introspection interface for a class",
+    "extended_description": "This interface can be used to query various information about a class definition",
+    "methods": [
+      "gom.api.introspection.Class.description",
+      "gom.api.introspection.Class.methods",
+      "gom.api.introspection.Class.name",
+      "gom.api.introspection.Class.type"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.introspection.Function": {
+    "fqn": "gom.api.introspection.Function",
+    "module": "gom.api.introspection",
+    "name": "Function",
+    "description": "Introspection interface for a function",
+    "extended_description": "This interface can be used to query various information about a function",
+    "methods": [
+      "gom.api.introspection.Function.arguments",
+      "gom.api.introspection.Function.description",
+      "gom.api.introspection.Function.name",
+      "gom.api.introspection.Function.returns",
+      "gom.api.introspection.Function.signature"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.introspection.Method": {
+    "fqn": "gom.api.introspection.Method",
+    "module": "gom.api.introspection",
+    "name": "Method",
+    "description": "Introspection interface for a method",
+    "extended_description": "This interface can be used to query various information about a method",
+    "methods": [
+      "gom.api.introspection.Method.arguments",
+      "gom.api.introspection.Method.description",
+      "gom.api.introspection.Method.name",
+      "gom.api.introspection.Method.returns",
+      "gom.api.introspection.Method.signature"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.introspection.Module": {
+    "fqn": "gom.api.introspection.Module",
+    "module": "gom.api.introspection",
+    "name": "Module",
+    "description": "Introspection interface for a module",
+    "extended_description": "This interface can be used to query various information about a module",
+    "methods": [
+      "gom.api.introspection.Module.description",
+      "gom.api.introspection.Module.functions",
+      "gom.api.introspection.Module.name",
+      "gom.api.introspection.Module.tags",
+      "gom.api.introspection.Module.version"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.progress.ProgressBar": {
+    "fqn": "gom.api.progress.ProgressBar",
+    "module": "gom.api.progress",
+    "name": "ProgressBar",
+    "description": "Class representing the ProgressBar",
+    "extended_description": "This class is meant to be used with the Python 'with' statement",
+    "methods": [
+      "gom.api.progress.ProgressBar.finish_progress",
+      "gom.api.progress.ProgressBar.set_message",
+      "gom.api.progress.ProgressBar.set_progress"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [
+      "ProgressBar"
+    ],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.project.ProgressInformation": {
+    "fqn": "gom.api.project.ProgressInformation",
+    "module": "gom.api.project",
+    "name": "ProgressInformation",
+    "description": ":deprecated: Please use gom.api.progress.ProgressBar instead",
+    "extended_description": "Auxiliary class allowing to set progress information\n\nThis class is used to access the progress bar and progress message widgets of the application.",
+    "methods": [
+      "gom.api.project.ProgressInformation.set_message",
+      "gom.api.project.ProgressInformation.set_percent"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.services.Service": {
+    "fqn": "gom.api.services.Service",
+    "module": "gom.api.services",
+    "name": "Service",
+    "description": "Class representing a single API service",
+    "extended_description": "This class represents an API service. The properties of that service can be read and\nthe service can be administered (started, stopped, ...) via that handle.",
+    "methods": [
+      "gom.api.services.Service.get_autostart",
+      "gom.api.services.Service.get_endpoint",
+      "gom.api.services.Service.get_name",
+      "gom.api.services.Service.get_number_of_instances",
+      "gom.api.services.Service.get_status",
+      "gom.api.services.Service.start",
+      "gom.api.services.Service.stop"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.testing.TestObject": {
+    "fqn": "gom.api.testing.TestObject",
+    "module": "gom.api.testing",
+    "name": "TestObject",
+    "description": "Simple object which can be passed around the API for testing purpose",
+    "extended_description": "This object is used by various test setups to test object handling in the API",
+    "methods": [
+      "gom.api.testing.TestObject.get_id",
+      "gom.api.testing.TestObject.get_name"
+    ],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  },
+  "gom.api.tools.MultiElementCreationScope": {
+    "fqn": "gom.api.tools.MultiElementCreationScope",
+    "module": "gom.api.tools",
+    "name": "MultiElementCreationScope",
+    "description": "Context manager for creating multiple elements in a single step",
+    "extended_description": "This class can be used in a `with` statement to prohibid the full application synchronization step\nbetween commands. Usually, the ZEISS INSPECT software synchronizes the application after each\ncommand being executed. This can be very time consuming, if a large number of elements are created\nin a single step. By using this scope, the synchronization is only done once after all elements\nhave been created, as soon as this scope is left.\n\n```{caution}\nDisabling the full application synchronization can lead to various side effects, so use this with caution !\nAlso, the UI update will be locked during the time the scope is active. So the user will not see any changes \nin the UI until the scope is left again.\n```\n\n**Example**\n\n```\nimport gom.api.tools\n\nwith gom.api.tools.MultiElementCreationScope():\n    for _ in range(10000):\n        # Will not lead to a full application synchronization\n        gom.script.inspection.create_some_simple_point(...)",
+    "methods": [],
+    "source_file": "doc/python_api/python_api.md",
+    "used_by_examples": [],
+    "mentioned_in_howtos": []
+  }
+}
