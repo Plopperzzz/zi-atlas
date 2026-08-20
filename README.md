@@ -143,15 +143,57 @@ on first run; subsequent starts use the cache and are instant.
 | `lookup_class(name)`    | class description, methods, cross-refs. |
 | `lookup_module(name)`   | module description + function / class listing. |
 | `dump_module(name, include_extended=False)` | every function and class in a module with full descriptions — use instead of paginating through search. |
-| `list_all_symbols(prefix="", kind="all", limit=1000)` | flat enumeration of every documented symbol. Optional case-insensitive substring filter. Good for "what exists?" exploration. |
+| `list_all_symbols(prefix="", kind="all", limit=200, detail="names")` | flat enumeration of every documented symbol. Optional case-insensitive substring filter. Good for "what exists?" exploration. `detail="compact"` adds a clipped one-liner per symbol (~3x the tokens). |
 | `get_example(name, full_code=True)` | full example doc, all scripts, and the list of `gom.api.*` calls made. |
 | `get_howto(slug)` | full how-to guide content. Accepts dots or slashes. |
-| `search(query, kind="all", limit=25, mode="hybrid")` | hybrid BM25 + dense semantic search, fused with RRF. `mode` is `"hybrid"` (default), `"bm25"`, or `"semantic"`. Falls back to BM25 if `sentence-transformers` isn't installed. |
+| `search(query, kind="all", limit=10, mode="hybrid", detail="compact", min_score=0.3)` | hybrid BM25 + dense semantic search, fused with RRF. `mode` is `"hybrid"` (default), `"bm25"`, or `"semantic"`. Falls back to BM25 if `sentence-transformers` isn't installed. |
 | `search_by_tag(tag)` | examples by tag (derived from category + name tokens when upstream tags are empty). |
 | `list_modules()` | all modules with function / class counts. |
 
-`search` returns `mode` and `semantic_available` alongside the hits so the
-client can see whether it actually ran in hybrid mode.
+### How `search` spends context
+
+Search results are the hottest path in a client's context window: they get
+fetched speculatively, often several times per question, and most hits are
+skimmed and dropped. So `search` is tuned to answer one question cheaply —
+*what should I look up next?* — and leaves the prose to the `lookup_*` /
+`get_*` calls that follow.
+
+Three things keep the payload small:
+
+- **`limit` is a total, not a per-kind cap.** It used to be per kind, so
+  `kind="all", limit=25` could return 125 records. Hits from all five kinds
+  are now normalized against the best hit *of their own kind* (raw BM25
+  scores aren't comparable across kinds) and ranked in one list, so the
+  budget goes to whatever is actually most relevant.
+- **`min_score` drops the tail.** Hits scoring below that fraction of their
+  kind's best hit are discarded — this is what removes the two dozen
+  weak matches that share only a common word with the query. Pass `0` to
+  disable. It bites less in `mode="hybrid"`, where RRF scores span a narrow
+  range and `limit` does the bounding instead.
+- **`detail` picks the rendering.** `"compact"` (default) is one line per
+  hit — identifier, signature or counts, and a clipped one-liner.
+  `"names"` is identifiers only, for wide sweeps. `"full"` returns the
+  structured records with untruncated descriptions.
+
+Measured over five representative queries against the 2026 corpus
+(133 functions / 62 classes / 22 modules / 51 examples / 51 how-tos):
+
+| shape | avg tokens per call |
+| --- | --- |
+| previous default (`limit=25`, per-kind, full descriptions) | ~3250 |
+| `detail="full"` | ~610 |
+| `detail="compact"` (default) | ~290 |
+| `detail="names"` | ~140 |
+
+That is roughly a 90% cut at the default settings, and the top of the list
+gets *better*, not worse: cross-kind ranking surfaces the one strongly
+matching module ahead of twenty weak example hits.
+
+When more hits passed the floor than `limit` allowed, the response carries
+`more: N` so the client knows to narrow the query or raise the limit rather
+than assuming it saw everything. If `mode` asked for semantic ranking and
+the dense index isn't loaded, a short `note` says so — otherwise the
+response is nothing but hits.
 
 ## Client configuration examples
 

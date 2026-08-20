@@ -24,13 +24,18 @@ Tool surface:
                            descriptions (use instead of paginating search)
     list_all_symbols(...)  flat list of every documented symbol, optional
                            prefix/kind filter — for "what exists" exploration
+                           (detail="names" by default; "compact" adds
+                           one-liners at roughly 3x the tokens)
     get_example(name)      full example doc + all scripts + API calls made
     get_howto(slug)        full how-to guide text (accepts dots or slashes)
-    search(query, kind?, mode?)
+    search(query, kind?, limit?, mode?, detail?, min_score?)
                            hybrid BM25 + dense semantic search, fused with
                            reciprocal rank fusion. mode="hybrid"|"bm25"|
                            "semantic" (default hybrid; falls back to bm25
                            if sentence-transformers isn't installed).
+                           Returns the `limit` best hits overall (not per
+                           kind) as one-line summaries; detail="names"|
+                           "compact"|"full" trades detail for context.
     search_by_tag(tag)     examples by tag (tags are derived from category +
                            name tokens if the source has none)
     list_example_categories()
@@ -75,6 +80,11 @@ except ImportError:
 # ("XMLParser" -> "XML Parser").
 _CAMEL_RE = re.compile(r'(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])')
 _WORD_RE = re.compile(r'[a-zA-Z0-9]+')
+
+
+# A ranked hit: (corpus key, relevance score). Scores are only comparable
+# within one kind and one retrieval mode — normalize before mixing them.
+Scored = tuple[str, float]
 
 
 def _tokenize(text: str) -> list[str]:
@@ -380,7 +390,9 @@ class SearchIndex:
         if docs:
             self.kinds[kind] = (keys, BM25Okapi(docs))
 
-    def query(self, kind: str, q: str, limit: int) -> list[str]:
+    def query_scored(self, kind: str, q: str, limit: int) -> list[Scored]:
+        """Ranked (key, score) pairs. Callers use the scores to prune the
+        long tail of weak matches before it reaches the model."""
         if kind not in self.kinds:
             return []
         keys, bm25 = self.kinds[kind]
@@ -393,7 +405,10 @@ class SearchIndex:
             key=lambda t: t[0],
             reverse=True,
         )[:limit]
-        return [k for _, k in ranked]
+        return [(k, float(s)) for s, k in ranked]
+
+    def query(self, kind: str, q: str, limit: int) -> list[str]:
+        return [k for k, _ in self.query_scored(kind, q, limit)]
 
 
 # =============================================================================
@@ -660,7 +675,7 @@ class SemanticIndex:
                       f"semantic search disabled.", file=sys.stderr)
                 return None
 
-    def query(self, kind: str, q: str, limit: int) -> list[str]:
+    def query_scored(self, kind: str, q: str, limit: int) -> list[Scored]:
         if not self.available or kind not in self.kinds or not q.strip():
             return []
         keys, vecs = self.kinds[kind]
@@ -675,7 +690,11 @@ class SemanticIndex:
         else:
             top_idx = self._np.argpartition(-scores, limit)[:limit]
             order = top_idx[self._np.argsort(-scores[top_idx])]
-        return [keys[int(i)] for i in order if scores[int(i)] > 0.0]
+        return [(keys[int(i)], float(scores[int(i)]))
+                for i in order if scores[int(i)] > 0.0]
+
+    def query(self, kind: str, q: str, limit: int) -> list[str]:
+        return [k for k, _ in self.query_scored(kind, q, limit)]
 
 
 # =============================================================================
@@ -689,13 +708,12 @@ class SemanticIndex:
 # that we don't bother tuning it.
 
 def _rrf_fuse(rankings: list[list[str]], limit: int, k: int = 60
-              ) -> list[str]:
+              ) -> list[Scored]:
     scores: dict[str, float] = {}
     for ranking in rankings:
         for rank, doc in enumerate(ranking):
             scores[doc] = scores.get(doc, 0.0) + 1.0 / (k + rank + 1)
-    return [d for d, _ in sorted(scores.items(),
-                                 key=lambda t: -t[1])[:limit]]
+    return sorted(scores.items(), key=lambda t: -t[1])[:limit]
 
 
 class HybridSearchIndex:
@@ -712,6 +730,27 @@ class HybridSearchIndex:
     def has_semantic(self) -> bool:
         return self.semantic.available
 
+    def query_scored(
+        self,
+        kind: str,
+        q: str,
+        limit: int,
+        mode: str = "hybrid",
+    ) -> list[Scored]:
+        if mode == "bm25" or not self.has_semantic:
+            return self.bm25.query_scored(kind, q, limit)
+        if mode == "semantic":
+            return self.semantic.query_scored(kind, q, limit)
+        # hybrid: pull a wider candidate pool from both, fuse by RRF.
+        pool = max(limit * 4, 50)
+        bm = self.bm25.query_scored(kind, q, pool)
+        sem = self.semantic.query_scored(kind, q, pool)
+        if not bm:
+            return sem[:limit]
+        if not sem:
+            return bm[:limit]
+        return _rrf_fuse([[k for k, _ in bm], [k for k, _ in sem]], limit)
+
     def query(
         self,
         kind: str,
@@ -719,24 +758,99 @@ class HybridSearchIndex:
         limit: int,
         mode: str = "hybrid",
     ) -> list[str]:
-        if mode == "bm25" or not self.has_semantic:
-            return self.bm25.query(kind, q, limit)
-        if mode == "semantic":
-            return self.semantic.query(kind, q, limit)
-        # hybrid: pull a wider candidate pool from both, fuse by RRF.
-        pool = max(limit * 4, 50)
-        bm = self.bm25.query(kind, q, pool)
-        sem = self.semantic.query(kind, q, pool)
-        if not bm:
-            return sem[:limit]
-        if not sem:
-            return bm[:limit]
-        return _rrf_fuse([bm, sem], limit)
+        return [k for k, _ in self.query_scored(kind, q, limit, mode=mode)]
 
 
 # =============================================================================
 # Response shapers (trim verbose fields for typical LLM consumption)
 # =============================================================================
+#
+# Search results are the hottest path in the client's context window: they are
+# fetched speculatively, often several times per question, and most hits are
+# discarded after a glance. So a hit is rendered as one compact line — enough
+# to decide whether to spend a lookup_* call on it, and nothing more. The
+# detailed views below are what the follow-up call pays for.
+
+_KINDS = ("function", "class", "module", "example", "howto")
+
+# Short kind tags for detail="names" — the whole point of that mode is that a
+# hit costs a handful of tokens, so the tag has to be cheap too.
+_KIND_PREFIX = {"function": "fn", "class": "class", "module": "module",
+                "example": "example", "howto": "howto"}
+
+
+def _clip(s: str | None, n: int = 160) -> str:
+    """Collapse whitespace and cut to n chars. Docstring first paragraphs run
+    to several hundred chars; at 25 hits that alone dominates the payload."""
+    s = " ".join((s or "").split())
+    return s if len(s) <= n else s[:n - 1].rstrip() + "\u2026"
+
+
+def _hit_line(C: Corpus, kind: str, key: str, desc_chars: int) -> str:
+    """One-line rendering of a search hit.
+
+    Deliberately a string, not an object: a list of 10 dicts spends a few
+    hundred tokens re-stating the same key names, and the model needs no
+    field structure to pick which hit to look up next.
+    """
+    if kind == "function":
+        v = C.functions[key]
+        # signature already starts with the fqn — don't print the name twice.
+        head = f"fn {_clip(v.get('signature') or key, 200)}"
+        return _join_hit(head, v.get("description"), desc_chars)
+    if kind == "class":
+        v = C.classes[key]
+        n = len(v.get("methods") or [])
+        head = (f"class {key} ({n} method{'s' if n != 1 else ''})" if n
+                else f"class {key}")
+        return _join_hit(head, v.get("description"), desc_chars)
+    if kind == "module":
+        v = C.modules[key]
+        head = (f"module {key} ({len(v.get('functions') or [])} fns, "
+                f"{len(v.get('classes') or [])} classes)")
+        return _join_hit(head, v.get("description"), desc_chars)
+    if kind == "example":
+        v = C.examples[key]
+        cat = v.get("category") or ""
+        head = f"example {key} [{cat}]" if cat else f"example {key}"
+        return _join_hit(head, v.get("description"), desc_chars)
+    v = C.howtos[key]
+    return _join_hit(f"howto {key}", v.get("title"), desc_chars)
+
+
+def _join_hit(head: str, desc: str | None, desc_chars: int) -> str:
+    body = _clip(desc, desc_chars) if desc_chars > 0 else ""
+    return f"{head} :: {body}" if body else head
+
+
+def _full_hit(C: Corpus, kind: str, key: str) -> dict:
+    """Structured hit with untruncated prose — the old default shape, kept
+    behind detail="full" for callers that really want it."""
+    if kind == "function":
+        v = C.functions[key]
+        return {"kind": "function", "fqn": key,
+                "signature": v.get("signature", ""),
+                "description": v.get("description", "")}
+    if kind == "class":
+        v = C.classes[key]
+        return {"kind": "class", "fqn": key,
+                "description": v.get("description", ""),
+                "method_count": len(v.get("methods") or [])}
+    if kind == "module":
+        v = C.modules[key]
+        return {"kind": "module", "name": key,
+                "description": v.get("description", ""),
+                "fn_count": len(v.get("functions") or []),
+                "cls_count": len(v.get("classes") or [])}
+    if kind == "example":
+        v = C.examples[key]
+        return {"kind": "example", "name": key,
+                "category": v.get("category", ""),
+                "description": v.get("description", ""),
+                "tags": v.get("tags") or []}
+    v = C.howtos[key]
+    return {"kind": "howto", "slug": key, "title": v.get("title", "")}
+
 
 def _function_view(C: Corpus, fqn: str, verbose: bool = False) -> dict:
     """Compact function dict with embedded example snippets."""
@@ -1028,63 +1142,88 @@ def build_server(
     def search(
         query: str,
         kind: str = "all",
-        limit: int = 25,
+        limit: int = 10,
         mode: str = "hybrid",
+        detail: str = "compact",
+        min_score: float = 0.30,
     ) -> dict[str, Any]:
         """Hybrid (BM25 + dense semantic) search across the API corpus.
+
+        Returns the `limit` best hits overall as compact one-line summaries,
+        ranked across all kinds together — enough to pick what to look up
+        next with lookup_function / lookup_class / get_example / get_howto.
 
         Handles CamelCase: 'scripted curve check' matches ScriptedCurveCheck.
         Searches names, signatures, full example documentation, and function
         extended_description — not just short summaries.
 
-        kind: "all" | "function" | "class" | "module" | "example" | "howto"
-        mode: "hybrid" (default; reciprocal-rank-fuses BM25 + semantic) |
-              "bm25" (lexical only; best for known FQNs / exact tokens) |
-              "semantic" (dense only; best for paraphrase / concept queries).
-              Falls back to bm25 if sentence-transformers isn't installed.
+        kind:   "all" | "function" | "class" | "module" | "example" | "howto"
+        limit:  max hits in total (not per kind). Start small; `more` in the
+                response tells you how many were held back.
+        mode:   "hybrid" (default; reciprocal-rank-fuses BM25 + semantic) |
+                "bm25" (lexical only; best for known FQNs / exact tokens) |
+                "semantic" (dense only; best for paraphrase / concept
+                queries). Falls back to bm25 if sentence-transformers is
+                not installed.
+        detail: "compact" (default; one line per hit) | "names" (identifiers
+                only — cheapest, for wide sweeps) | "full" (structured
+                records with untruncated descriptions; costs roughly 10x
+                compact, so ask for it only when you need the prose).
+        min_score: drop hits scoring below this fraction of the best hit of
+                their kind (0 disables). Trims the long tail of matches that
+                share only a common word with the query.
         """
         if mode not in ("hybrid", "bm25", "semantic"):
             return {"error": f"mode must be hybrid|bm25|semantic, got {mode!r}"}
-        out: dict[str, Any] = {
-            "mode": mode if INDEX.has_semantic or mode == "bm25" else "bm25",
-            "semantic_available": INDEX.has_semantic,
-        }
+        if detail not in ("compact", "names", "full"):
+            return {"error":
+                    f"detail must be compact|names|full, got {detail!r}"}
         wanted = (["function", "class", "module", "example", "howto"]
                   if kind == "all" else [kind])
+        if kind != "all" and kind not in _KINDS:
+            return {"error": f"unknown kind {kind!r}; expected all|"
+                             + "|".join(_KINDS)}
 
+        # Pull a candidate pool per kind, then rank everything together so a
+        # weak function hit can't outrank a strong how-to just because it
+        # belongs to a different bucket. Scores are only meaningful within a
+        # kind, so normalize each kind against its own best hit first.
+        #
+        # Caveat: in hybrid mode the scores are RRF scores, which decay as
+        # 1/(60+rank) and so span a narrow range — min_score prunes far less
+        # there than under bm25/semantic. `limit` is what bounds the payload
+        # in that mode, which is why it defaults low.
+        pool: list[tuple[float, str, str]] = []
         for k in wanted:
-            hits = INDEX.query(k, query, limit, mode=mode)
-            if k == "function":
-                out["functions"] = [
-                    {"fqn": f, "signature": C.functions[f]["signature"],
-                     "description": C.functions[f]["description"]}
-                    for f in hits
-                ]
-            elif k == "class":
-                out["classes"] = [
-                    {"fqn": f, "description": C.classes[f]["description"],
-                     "method_count": len(C.classes[f].get("methods", []))}
-                    for f in hits
-                ]
-            elif k == "module":
-                out["modules"] = [
-                    {"name": n, "description": C.modules[n]["description"],
-                     "fn_count": len(C.modules[n].get("functions", [])),
-                     "cls_count": len(C.modules[n].get("classes", []))}
-                    for n in hits
-                ]
-            elif k == "example":
-                out["examples"] = [
-                    {"name": n, "category": C.examples[n]["category"],
-                     "description": C.examples[n]["description"],
-                     "tags": C.examples[n]["tags"]}
-                    for n in hits
-                ]
-            elif k == "howto":
-                out["howtos"] = [
-                    {"slug": s, "title": C.howtos[s]["title"]}
-                    for s in hits
-                ]
+            rows = INDEX.query_scored(k, query, max(limit * 3, 30), mode=mode)
+            if not rows:
+                continue
+            top = rows[0][1] or 1.0
+            for key, score in rows:
+                rel = score / top if top else 0.0
+                if rel < min_score:
+                    break            # rows are ranked, so the rest are worse
+                pool.append((rel, k, key))
+        pool.sort(key=lambda t: -t[0])
+
+        shown = pool[:limit]
+        out: dict[str, Any] = {}
+        if detail == "full":
+            out["hits"] = [_full_hit(C, k, key) for _, k, key in shown]
+        elif detail == "names":
+            out["hits"] = [f"{_KIND_PREFIX[k]} {key}" for _, k, key in shown]
+        else:
+            out["hits"] = [_hit_line(C, k, key, 160) for _, k, key in shown]
+        if len(pool) > limit:
+            out["more"] = len(pool) - limit
+        if not pool:
+            out["hits"] = []
+            out["note"] = ("no matches; try mode='semantic' for a conceptual "
+                           "query, or list_all_symbols to browse")
+        # Only worth a line when it changes how the client should read the
+        # results — i.e. when the requested mode wasn't the one that ran.
+        if mode != "bm25" and not INDEX.has_semantic:
+            out["note"] = "semantic index unavailable; ran bm25 only"
         return out
 
     @mcp.tool()
@@ -1190,58 +1329,55 @@ def build_server(
     def list_all_symbols(
         prefix: str = "",
         kind: str = "all",
-        limit: int = 1000,
+        limit: int = 200,
+        detail: str = "names",
     ) -> dict[str, Any]:
-        """Flat enumeration of every documented symbol (name + one-liner).
+        """Flat enumeration of every documented symbol.
 
         Use this for "what exists?" exploration when you don't have a query
         good enough for search. Optional `prefix` is a case-insensitive
         substring filter applied to the name/fqn — pass "imaging" to see
         every symbol whose fqn or name contains "imaging".
 
-        kind: "all" | "function" | "class" | "module" | "example" | "howto"
-        limit: per-kind cap (default 1000; bump for large dumps).
+        kind:   "all" | "function" | "class" | "module" | "example" | "howto"
+        limit:  per-kind cap (default 200). `truncated` in the response names
+                the kinds that hit the cap.
+        detail: "names" (default; identifiers only — an unfiltered dump of
+                the whole corpus costs ~10x more with descriptions attached)
+                | "compact" (identifier + clipped one-liner).
         """
+        if detail not in ("names", "compact"):
+            return {"error": f"detail must be names|compact, got {detail!r}"}
         pl = (prefix or "").lower()
-        kinds = (["function", "class", "module", "example", "howto"]
-                 if kind == "all" else [kind])
-        out: dict[str, Any] = {"prefix": prefix, "kind": kind}
+        kinds = list(_KINDS) if kind == "all" else [kind]
+        if kind != "all" and kind not in _KINDS:
+            return {"error": f"unknown kind {kind!r}; expected all|"
+                             + "|".join(_KINDS)}
 
-        if "function" in kinds:
-            hits = sorted(f for f in C.functions if pl in f.lower())[:limit]
-            out["functions"] = [
-                {"fqn": f, "description": C.functions[f]["description"]}
-                for f in hits
-            ]
-        if "class" in kinds:
-            hits = sorted(c for c in C.classes if pl in c.lower())[:limit]
-            out["classes"] = [
-                {"fqn": c, "description": C.classes[c]["description"]}
-                for c in hits
-            ]
-        if "module" in kinds:
-            hits = sorted(m for m in C.modules if pl in m.lower())[:limit]
-            out["modules"] = [
-                {"name": m, "description": C.modules[m]["description"][:200]}
-                for m in hits
-            ]
-        if "example" in kinds:
-            hits = sorted(e for e in C.examples if pl in e.lower())[:limit]
-            out["examples"] = [
-                {"name": e, "category": C.examples[e]["category"],
-                 "description": C.examples[e]["description"]}
-                for e in hits
-            ]
-        if "howto" in kinds:
-            hits = sorted(s for s in C.howtos if pl in s.lower())[:limit]
-            out["howtos"] = [
-                {"slug": s, "title": C.howtos[s]["title"]}
-                for s in hits
-            ]
-
-        out["total"] = sum(
-            len(v) for k, v in out.items() if isinstance(v, list)
-        )
+        sources = {
+            "function": (C.functions, "functions"),
+            "class": (C.classes, "classes"),
+            "module": (C.modules, "modules"),
+            "example": (C.examples, "examples"),
+            "howto": (C.howtos, "howtos"),
+        }
+        out: dict[str, Any] = {}
+        truncated: list[str] = []
+        total = 0
+        for k in kinds:
+            items, label = sources[k]
+            matched = sorted(key for key in items if pl in key.lower())
+            if len(matched) > limit:
+                truncated.append(f"{label} ({len(matched)} matched)")
+                matched = matched[:limit]
+            total += len(matched)
+            if detail == "names":
+                out[label] = matched
+            else:
+                out[label] = [_hit_line(C, k, key, 100) for key in matched]
+        out["total"] = total
+        if truncated:
+            out["truncated"] = truncated
         return out
 
     @mcp.tool()
@@ -1250,7 +1386,7 @@ def build_server(
         return {
             "modules": [
                 {"name": name,
-                 "description": mod["description"][:200],
+                 "description": _clip(mod["description"], 160),
                  "fn_count": len(mod.get("functions", [])),
                  "cls_count": len(mod.get("classes", []))}
                 for name, mod in sorted(C.modules.items())
