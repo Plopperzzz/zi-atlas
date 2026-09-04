@@ -59,10 +59,23 @@ corpus/
   api_functions.json
   api_classes.json
   modules.json
+  attributes.json
   howtos.json
   examples.json
+  passages.json
+  referenced_symbols.json
   corpus_meta.json
 ```
+
+`howtos.json` and `examples.json` are delivery records: they preserve the
+complete guide or example app for `get_howto` / `get_example`.
+`passages.json` is the separate search representation. The builder splits
+Markdown on H2-H4 section boundaries, packs complete prose/list/code blocks,
+and splits Python at module/function/class/method boundaries. A conservative
+420-token estimated maximum keeps each passage inside bge-small's 512-token
+window after the title and breadcrumb are added. The build log and
+`corpus_meta.json` report count, mean, p95, maximum, and over-budget passages
+for each passage kind.
 
 Useful flags (`--help` for the full list):
 
@@ -107,7 +120,8 @@ For a trusted LAN you can bypass the DNS-rebinding guard entirely with
 
 ### Semantic-search flags
 
-The first run encodes every function, class, module, example, and how-to
+The first run encodes every function, class, module, attribute, and bounded
+example/how-to passage
 with the embedding model and caches the float32 vectors under
 `<corpus-dir>/.embeddings/`. Subsequent starts are fast — a kind is only
 re-encoded when its content signature changes.
@@ -139,15 +153,20 @@ on first run; subsequent starts use the cache and are instant.
 
 | tool | what it does |
 | --- | --- |
+| `get_corpus_meta()` | corpus version, upstream commits, and passage-size statistics. |
 | `lookup_function(name)` | signature, params, return info, cross-refs. Accepts full fqn or short name. |
+| `get_function_examples(name, limit=3, full_code=False)` | relevant bounded documentation/code passages from examples that use a function. Set `full_code=True` for complete apps. |
 | `lookup_class(name)`    | class description, methods, cross-refs. |
 | `lookup_module(name)`   | module description + function / class listing. |
+| `lookup_attribute(chain)` | observed `gom.app.*` property chains and access patterns. |
 | `dump_module(name, include_extended=False)` | every function and class in a module with full descriptions — use instead of paginating through search. |
 | `list_all_symbols(prefix="", kind="all", limit=1000)` | flat enumeration of every documented symbol. Optional case-insensitive substring filter. Good for "what exists?" exploration. |
 | `get_example(name, full_code=True)` | full example doc, all scripts, and the list of `gom.api.*` calls made. |
 | `get_howto(slug)` | full how-to guide content. Accepts dots or slashes. |
-| `search(query, kind="all", limit=25, mode="hybrid")` | hybrid BM25 + dense semantic search, fused with RRF. `mode` is `"hybrid"` (default), `"bm25"`, or `"semantic"`. Falls back to BM25 if `sentence-transformers` isn't installed. |
+| `get_passage(passage_id)` | one complete bounded how-to, example-doc, or Python-code passage returned by search. |
+| `search(query, kind="all", limit=25, mode="hybrid")` | hybrid BM25 + dense semantic search, fused with RRF. Example/how-to hits are passage-level, include a query-centred preview, and are diversified across parent sources. `mode` is `"hybrid"` (default), `"bm25"`, or `"semantic"`. |
 | `search_by_tag(tag)` | examples by tag (derived from category + name tokens when upstream tags are empty). |
+| `list_example_categories()` | every example grouped by category. |
 | `list_modules()` | all modules with function / class counts. |
 
 `search` returns `mode` and `semantic_available` alongside the hits so the

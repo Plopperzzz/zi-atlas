@@ -16,8 +16,8 @@ Tool surface:
     get_corpus_meta()      version + build provenance for the loaded corpus
     lookup_function(name)  signature, params, examples, howtos for a function
     get_function_examples(name, limit?)
-                           full examples (with scripts) for a function, in one
-                           call (collapses lookup_function -> get_example chain)
+                           relevant bounded example passages for a function;
+                           full_code=True returns complete apps
     lookup_class(name)     class description, method list, cross-refs
     lookup_module(name)    module description + function/class listing
     dump_module(name)      every function + class in a module, with full
@@ -26,6 +26,7 @@ Tool surface:
                            prefix/kind filter — for "what exists" exploration
     get_example(name)      full example doc + all scripts + API calls made
     get_howto(slug)        full how-to guide text (accepts dots or slashes)
+    get_passage(id)        one bounded how-to/example documentation/code passage
     search(query, kind?, mode?)
                            hybrid BM25 + dense semantic search, fused with
                            reciprocal rank fusion. mode="hybrid"|"bm25"|
@@ -101,6 +102,9 @@ class Corpus:
     modules: dict[str, dict]
     examples: dict[str, dict]
     howtos: dict[str, dict]
+    # Optional bounded search units generated from howtos/examples.  Parent
+    # records remain whole for get_howto/get_example delivery.
+    passages: dict[str, dict] = field(default_factory=dict)
     # derived:
     # normalized howto slug ("foo.bar" / "foo/bar" both -> "foo.bar") -> real slug
     howto_slug_map: dict[str, str] = field(default_factory=dict)
@@ -114,10 +118,11 @@ class Corpus:
 
     @classmethod
     def load(cls, corpus_dir: Path) -> "Corpus":
-        def _j(name: str) -> dict:
+        def _j(name: str, optional: bool = False) -> dict:
             p = corpus_dir / name
             if not p.exists():
-                print(f"warning: {p} missing; treating as empty", file=sys.stderr)
+                if not optional:
+                    print(f"warning: {p} missing; treating as empty", file=sys.stderr)
                 return {}
             return json.loads(p.read_text(encoding="utf-8"))
 
@@ -127,6 +132,7 @@ class Corpus:
             modules=_j("modules.json"),
             examples=_j("examples.json"),
             howtos=_j("howtos.json"),
+            passages=_j("passages.json", optional=True),
         )
 
         # Optional: load the referenced-symbols side index if the corpus
@@ -320,6 +326,32 @@ def _referenced_but_undocumented(C: Corpus, name: str) -> dict[str, Any] | None:
     }
 
 
+def _passages_for(C: Corpus, parent_kind: str) -> dict[str, dict]:
+    """Return passage records belonging to howtos or examples."""
+    if parent_kind == "howto":
+        return {k: v for k, v in C.passages.items()
+                if v.get("kind") == "howto"}
+    if parent_kind == "example":
+        return {k: v for k, v in C.passages.items()
+                if str(v.get("kind", "")).startswith("example_")}
+    return {}
+
+
+def _trusted_attribute_description(attr: dict) -> str:
+    """Do not index legacy nearest-paragraph descriptions known to be noisy."""
+    if attr.get("description_confidence") == "subject_matched":
+        return attr.get("description", "") or ""
+    return ""
+
+
+def _trusted_access_patterns(attr: dict) -> list[str]:
+    """Discard malformed patterns emitted by older corpus builders."""
+    return [
+        p for p in (attr.get("access_patterns") or [])
+        if p.count("[") == p.count("]") and len(p) <= 240
+    ]
+
+
 # =============================================================================
 # BM25 search index — built once at startup
 # =============================================================================
@@ -355,27 +387,50 @@ class SearchIndex:
             + _tokenize(v.get("description", ""))
         ))
 
-        self._build("example", C.examples, lambda k, v: (
-            # Repeat name tokens to boost their weight — rank_bm25 has no
-            # native field weighting, so duplicating is the cheap workaround.
-            _tokenize(k) * 3
-            + _tokenize(v.get("category", "")) * 2
-            + _tokenize(v.get("description", ""))
-            + _tokenize(v.get("documentation", ""))
-            + [t.lower() for t in (v.get("tags") or [])]
-            + _tokenize(" ".join(v.get("api_calls") or []))
-        ))
+        example_passages = _passages_for(C, "example")
+        if example_passages:
+            self._build("example", example_passages, lambda k, v: (
+                _tokenize(v.get("parent_id", "")) * 3
+                + _tokenize(v.get("title", "")) * 2
+                + _tokenize(v.get("source_file", ""))
+                + _tokenize(v.get("content", ""))
+                + _tokenize(" ".join(v.get("api_mentions") or []))
+                + _tokenize(C.examples.get(v.get("parent_id", ""), {}).get(
+                    "category", "")) * 2
+                + [t.lower() for t in C.examples.get(
+                    v.get("parent_id", ""), {}).get("tags", [])]
+            ))
+        else:
+            self._build("example", C.examples, lambda k, v: (
+                # Backward-compatible fallback for pre-passage corpora.
+                _tokenize(k) * 3
+                + _tokenize(v.get("category", "")) * 2
+                + _tokenize(v.get("description", ""))
+                + _tokenize(v.get("documentation", ""))
+                + [t.lower() for t in (v.get("tags") or [])]
+                + _tokenize(" ".join(v.get("api_calls") or []))
+            ))
 
-        self._build("howto", C.howtos, lambda k, v: (
-            _tokenize(k) * 3
-            + _tokenize(v.get("title", "")) * 2
-            + _tokenize(v.get("content", ""))
-        ))
+        howto_passages = _passages_for(C, "howto")
+        if howto_passages:
+            self._build("howto", howto_passages, lambda k, v: (
+                _tokenize(v.get("parent_id", "")) * 3
+                + _tokenize(v.get("title", "")) * 2
+                + _tokenize(" ".join(v.get("section_path") or []))
+                + _tokenize(v.get("content", ""))
+                + _tokenize(" ".join(v.get("api_mentions") or []))
+            ))
+        else:
+            self._build("howto", C.howtos, lambda k, v: (
+                _tokenize(k) * 3
+                + _tokenize(v.get("title", "")) * 2
+                + _tokenize(v.get("content", ""))
+            ))
 
         self._build("attribute", C.attributes, lambda k, v: (
             _tokenize(k) * 3
-            + _tokenize(v.get("description", ""))
-            + [p.lower() for p in (v.get("access_patterns") or [])]
+            + _tokenize(_trusted_attribute_description(v))
+            + [p.lower() for p in _trusted_access_patterns(v)]
         ))
 
     def _build(
@@ -474,11 +529,22 @@ def _embed_text_howto(k: str, v: dict) -> str:
     ) if p)
 
 
+def _embed_text_passage(k: str, v: dict) -> str:
+    """Passages are already bounded; embed the complete coherent unit."""
+    return " | ".join(p for p in (
+        v.get("parent_id", "") or "",
+        v.get("title", k) or k,
+        " > ".join(v.get("section_path") or []),
+        v.get("source_file", "") or "",
+        v.get("content", "") or "",
+    ) if p)
+
+
 def _embed_text_attribute(k: str, v: dict) -> str:
     return " | ".join(p for p in (
         k,
-        v.get("description", "") or "",
-        " ".join(v.get("access_patterns") or []),
+        _trusted_attribute_description(v),
+        " ".join(_trusted_access_patterns(v)),
     ) if p)
 
 
@@ -559,10 +625,15 @@ class SemanticIndex:
             "function": C.functions,
             "class": C.classes,
             "module": C.modules,
-            "example": C.examples,
-            "howto": C.howtos,
+            "example": _passages_for(C, "example") or C.examples,
+            "howto": _passages_for(C, "howto") or C.howtos,
             "attribute": C.attributes,
         }
+        builders = dict(_EMBED_BUILDERS)
+        if _passages_for(C, "example"):
+            builders["example"] = _embed_text_passage
+        if _passages_for(C, "howto"):
+            builders["howto"] = _embed_text_passage
         cache_dir = cache_dir or Path(".")
         cache_dir.mkdir(parents=True, exist_ok=True)
         tag = _safe_model_tag(model_name)
@@ -571,7 +642,7 @@ class SemanticIndex:
             keys = list(items)
             if not keys:
                 continue
-            texts = [_EMBED_BUILDERS[kind](k, items[k]) for k in keys]
+            texts = [builders[kind](k, items[k]) for k in keys]
             sig = _signature(keys, texts)
             cache_file = cache_dir / f"embeddings_{tag}_{kind}.npz"
 
@@ -803,8 +874,8 @@ def _attribute_view(C: Corpus, chain: str) -> dict:
     out = {
         "chain": attr["chain"],
         "root": attr["root"],
-        "description": attr["description"],
-        "access_patterns": attr["access_patterns"],
+        "description": _trusted_attribute_description(attr),
+        "access_patterns": _trusted_access_patterns(attr),
         "inferred_note": (
             "This entry was inferred from usage patterns in howtos/examples. "
             "It describes a gom.app.* property access chain, not a callable function."
@@ -880,12 +951,16 @@ def _example_view(C: Corpus, name: str, full_code: bool = True) -> dict:
                           for k, v in ex["scripts"].items()}
     if ex.get("mentioned_in_howtos"):
         out["mentioned_in_howtos"] = ex["mentioned_in_howtos"]
+    out["passage_count"] = sum(
+        p.get("parent_id") == name and str(p.get("kind", "")).startswith("example_")
+        for p in C.passages.values()
+    )
     return out
 
 
 def _howto_view(C: Corpus, slug: str) -> dict:
     ht = C.howtos[slug]
-    return {
+    out = {
         "slug": ht["slug"],
         "title": ht["title"],
         "content": ht["content"],
@@ -893,6 +968,89 @@ def _howto_view(C: Corpus, slug: str) -> dict:
         "example_mentions": ht["example_mentions"],
         "linked_howtos": ht["linked_howtos"],
     }
+    out["passage_count"] = sum(
+        p.get("parent_id") == slug and p.get("kind") == "howto"
+        for p in C.passages.values()
+    )
+    return out
+
+
+def _query_preview(content: str, query: str, limit: int = 700) -> str:
+    """Return a compact, query-centred preview without flattening code."""
+    if len(content) <= limit:
+        return content
+    lower = content.lower()
+    pos = lower.find(query.lower()) if query else -1
+    if pos < 0:
+        for token in _tokenize(query):
+            if len(token) >= 3:
+                pos = lower.find(token)
+                if pos >= 0:
+                    break
+    if pos < 0:
+        pos = 0
+    start = max(0, pos - limit // 3)
+    end = min(len(content), start + limit)
+    if start:
+        newline = content.find("\n", start, min(pos + 1, end))
+        if newline >= 0:
+            start = newline + 1
+    if end < len(content):
+        newline = content.rfind("\n", start, end)
+        if newline > start:
+            end = newline
+    return ("…" if start else "") + content[start:end].strip() + (
+        "…" if end < len(content) else ""
+    )
+
+
+def _passage_view(C: Corpus, passage_id: str) -> dict:
+    p = C.passages[passage_id]
+    return {
+        "id": p["id"],
+        "kind": p["kind"],
+        "parent_id": p["parent_id"],
+        "title": p["title"],
+        "source_file": p.get("source_file", ""),
+        "section_path": p.get("section_path", []),
+        "language": p.get("language", ""),
+        "content": p["content"],
+        "api_mentions": p.get("api_mentions", []),
+    }
+
+
+def _passage_hit_view(C: Corpus, passage_id: str, query: str) -> dict:
+    p = C.passages[passage_id]
+    return {
+        "passage_id": passage_id,
+        "kind": p["kind"],
+        "parent_id": p["parent_id"],
+        "title": p["title"],
+        "source_file": p.get("source_file", ""),
+        "language": p.get("language", ""),
+        "preview": _query_preview(p["content"], query),
+        "api_mentions": p.get("api_mentions", [])[:12],
+    }
+
+
+def _diversify_passage_hits(C: Corpus, hits: list[str], limit: int,
+                            per_parent: int = 3) -> list[str]:
+    """Keep one large source from monopolising a chunk-level result page."""
+    counts: dict[str, int] = {}
+    out: list[str] = []
+    for passage_id in hits:
+        passage = C.passages.get(passage_id)
+        if not passage:
+            out.append(passage_id)
+        else:
+            parent = passage.get("parent_id", passage_id)
+            if counts.get(parent, 0) >= per_parent:
+                continue
+            counts[parent] = counts.get(parent, 0) + 1
+            out.append(passage_id)
+        if len(out) >= limit:
+            break
+    return out
 
 
 # =============================================================================
@@ -971,11 +1129,16 @@ def build_server(
         return _function_view(C, matches[0])
 
     @mcp.tool()
-    def get_function_examples(name: str, limit: int = 3) -> dict[str, Any]:
-        """Return full examples (with scripts) for all examples that use a given function.
+    def get_function_examples(
+        name: str,
+        limit: int = 3,
+        full_code: bool = False,
+    ) -> dict[str, Any]:
+        """Return relevant example passages for a documented function.
 
-        Collapses the common lookup_function -> get_example chain into one call.
-        Accepts full fqn or partial name.
+        Accepts a full fqn or partial name. By default this returns bounded
+        documentation/code passages from each matching example. Set
+        full_code=True only when the complete example apps are required.
         """
         matches = _resolve_function(C, name)
         if not matches:
@@ -984,10 +1147,45 @@ def build_server(
             return {"candidates": [{"fqn": m} for m in matches]}
         fn = C.functions[matches[0]]
         names = (fn.get("used_by_examples") or [])[:limit]
+        if full_code or not C.passages:
+            return {
+                "fqn": matches[0],
+                "example_count": len(fn.get("used_by_examples") or []),
+                "examples": [
+                    _example_view(C, n, full_code=full_code)
+                    for n in names if n in C.examples
+                ],
+            }
+
+        fqn = matches[0]
+        leaf = fqn.rsplit(".", 1)[-1].lower()
+        compact_examples = []
+        for example_name in names:
+            candidates = []
+            for passage_id, passage in C.passages.items():
+                if passage.get("parent_id") != example_name:
+                    continue
+                mentions = passage.get("api_mentions") or []
+                content_lower = passage.get("content", "").lower()
+                exact = any(m == fqn or m.startswith(fqn + ".") for m in mentions)
+                leaf_hit = leaf in content_lower
+                if exact or leaf_hit:
+                    score = (10 if exact else 0) + (2 if passage.get("kind") == "example_script" else 0)
+                    candidates.append((score, passage_id))
+            candidates.sort(key=lambda item: (-item[0], item[1]))
+            compact_examples.append({
+                "name": example_name,
+                "category": C.examples.get(example_name, {}).get("category", ""),
+                "description": C.examples.get(example_name, {}).get("description", ""),
+                "passages": [
+                    _passage_hit_view(C, passage_id, fqn)
+                    for _, passage_id in candidates[:3]
+                ],
+            })
         return {
-            "fqn": matches[0],
+            "fqn": fqn,
             "example_count": len(fn.get("used_by_examples") or []),
-            "examples": [_example_view(C, n) for n in names if n in C.examples],
+            "examples": compact_examples,
         }
 
     @mcp.tool()
@@ -1057,8 +1255,9 @@ def build_server(
         # Return candidates sorted by chain length (shorter = more canonical).
         matches.sort(key=len)
         return {"candidates": [
-            {"chain": m, "description": C.attributes[m]["description"][:120],
-             "access_patterns": C.attributes[m]["access_patterns"][:4]}
+            {"chain": m,
+             "description": _trusted_attribute_description(C.attributes[m])[:120],
+             "access_patterns": _trusted_access_patterns(C.attributes[m])[:4]}
             for m in matches[:20]
         ]}
 
@@ -1113,6 +1312,28 @@ def build_server(
         ]}
 
     @mcp.tool()
+    def get_passage(passage_id: str) -> dict[str, Any]:
+        """Retrieve one bounded passage returned by search.
+
+        Passages are coherent sections of a how-to, example documentation, or
+        one Python module/function/class/method. Use parent_id with get_howto
+        or get_example only when the complete source is actually needed.
+        """
+        if passage_id in C.passages:
+            return _passage_view(C, passage_id)
+        pl = passage_id.lower()
+        matches = [p for p in C.passages if pl in p.lower()]
+        if not matches:
+            return {"error": f"no passage matching {passage_id!r}"}
+        if len(matches) == 1:
+            return _passage_view(C, matches[0])
+        return {"candidates": [
+            {"id": p, "title": C.passages[p]["title"],
+             "parent_id": C.passages[p]["parent_id"]}
+            for p in sorted(matches)[:50]
+        ]}
+
+    @mcp.tool()
     def search(
         query: str,
         kind: str = "all",
@@ -1122,8 +1343,10 @@ def build_server(
         """Hybrid (BM25 + dense semantic) search across the API corpus.
 
         Handles CamelCase: 'scripted curve check' matches ScriptedCurveCheck.
-        Searches names, signatures, full example documentation, and function
-        extended_description — not just short summaries.
+        Searches names, signatures, function extended descriptions, and
+        bounded passages from how-tos, example documentation, and Python
+        scripts. Passage hits include a query-centred preview and passage_id;
+        call get_passage only when the complete bounded chunk is needed.
 
         kind: "all" | "function" | "class" | "module" | "example" | "howto" | "attribute"
               "attribute" searches gom.app.* property chains inferred from usage.
@@ -1142,7 +1365,13 @@ def build_server(
                   if kind == "all" else [kind])
 
         for k in wanted:
-            hits = INDEX.query(k, query, limit, mode=mode)
+            passage_kind = k in ("example", "howto") and bool(
+                _passages_for(C, k)
+            )
+            raw_limit = limit * 4 if passage_kind else limit
+            hits = INDEX.query(k, query, raw_limit, mode=mode)
+            if passage_kind:
+                hits = _diversify_passage_hits(C, hits, limit)
             if k == "function":
                 out["functions"] = [
                     {"fqn": f,
@@ -1165,22 +1394,36 @@ def build_server(
                     for n in hits
                 ]
             elif k == "example":
-                out["examples"] = [
-                    {"name": n, "category": C.examples[n]["category"],
-                     "description": C.examples[n]["description"],
-                     "tags": C.examples[n]["tags"]}
-                    for n in hits
-                ]
+                if hits and hits[0] in C.passages:
+                    out["examples"] = [
+                        _passage_hit_view(C, passage_id, query)
+                        for passage_id in hits
+                    ]
+                else:
+                    out["examples"] = [
+                        {"name": n, "category": C.examples[n]["category"],
+                         "description": C.examples[n]["description"],
+                         "tags": C.examples[n]["tags"]}
+                        for n in hits
+                    ]
             elif k == "howto":
-                out["howtos"] = [
-                    {"slug": s, "title": C.howtos[s]["title"]}
-                    for s in hits
-                ]
+                if hits and hits[0] in C.passages:
+                    out["howtos"] = [
+                        _passage_hit_view(C, passage_id, query)
+                        for passage_id in hits
+                    ]
+                else:
+                    out["howtos"] = [
+                        {"slug": s, "title": C.howtos[s]["title"]}
+                        for s in hits
+                    ]
             elif k == "attribute":
                 out["attributes"] = [
                     {"chain": a,
-                     "description": C.attributes[a]["description"][:150],
-                     "access_patterns": C.attributes[a]["access_patterns"][:4]}
+                     "description": _trusted_attribute_description(
+                         C.attributes[a])[:150],
+                     "access_patterns": _trusted_access_patterns(
+                         C.attributes[a])[:4]}
                     for a in hits
                 ]
         return out
@@ -1415,7 +1658,7 @@ def main() -> int:
     C = Corpus.load(args.corpus)
     print(f"loaded: {len(C.functions)} functions, {len(C.classes)} classes, "
           f"{len(C.modules)} modules, {len(C.examples)} examples, "
-          f"{len(C.howtos)} howtos", file=sys.stderr)
+          f"{len(C.howtos)} howtos, {len(C.passages)} passages", file=sys.stderr)
 
     security = None
     if args.http:
