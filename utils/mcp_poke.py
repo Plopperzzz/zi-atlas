@@ -22,7 +22,8 @@ Usage:
 Commands (no server needed, with --corpus):
   howtos              list all indexed howto slugs (one per line)
   howto <slug>        dump one howto as JSON
-  search <query>      BM25 search across all kinds
+  passage <id>        dump one bounded search passage as JSON
+  search <query>      lightweight token search (passage-aware)
   meta                show corpus_meta.json
 
 Commands (server mode, with --stdio or --http):
@@ -35,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shlex
 import subprocess
 import sys
@@ -88,13 +90,59 @@ def cmd_direct(corpus: Path, args: list[str]) -> int:
             return 1
         sys.exit(f"error: no howto matching {slug!r}")
 
+    if cmd == "passage":
+        if not rest:
+            sys.exit("error: usage: passage <id>")
+        passage_id = rest[0]
+        passages_path = corpus / "passages.json"
+        if not passages_path.exists():
+            sys.exit("error: passages.json not found; rebuild the corpus")
+        passages = json.loads(passages_path.read_text())
+        if passage_id in passages:
+            print(json.dumps(passages[passage_id], indent=2))
+            return 0
+        matches = sorted(p for p in passages if passage_id.lower() in p.lower())
+        if len(matches) == 1:
+            print(json.dumps(passages[matches[0]], indent=2))
+            return 0
+        if matches:
+            print(f"no exact match for {passage_id!r}. Candidates:", file=sys.stderr)
+            for match in matches[:50]:
+                print(f"  {match}", file=sys.stderr)
+            return 1
+        sys.exit(f"error: no passage matching {passage_id!r}")
+
     if cmd == "search":
         if not rest:
             sys.exit("error: usage: search <query>")
-        # naive substring search across all indexes, enough for sanity checks
+        # Lightweight token scoring for build sanity checks. The MCP server's
+        # BM25 + semantic fusion remains the authoritative retrieval path.
         query = " ".join(rest).lower()
+        tokens = re.findall(r"[a-z0-9]+", query)
+
+        passages_path = corpus / "passages.json"
+        if passages_path.exists() and tokens:
+            passages = json.loads(passages_path.read_text())
+            ranked = []
+            for passage_id, passage in passages.items():
+                title = (passage.get("title") or "").lower()
+                body = (passage.get("content") or "").lower()
+                source = (passage.get("source_file") or "").lower()
+                score = sum(
+                    4 * title.count(t) + 2 * source.count(t) + body.count(t)
+                    for t in tokens
+                )
+                if score:
+                    ranked.append((score, passage_id, passage))
+            ranked.sort(key=lambda item: (-item[0], item[1]))
+            if ranked:
+                print(f"[passages.json] {len(ranked)} token hits (top 20):")
+                for score, passage_id, passage in ranked[:20]:
+                    print(f"  {score:4d}  {passage_id}  "
+                          f"{passage.get('title', '')}")
+
         for name in ("api_functions.json", "api_classes.json", "modules.json",
-                     "examples.json", "howtos.json"):
+                     "attributes.json", "examples.json", "howtos.json"):
             p = corpus / name
             if not p.exists():
                 continue
