@@ -28,6 +28,8 @@ Outputs:
   attributes.json      {chain: InferredAttribute}  gom.app.* property chains
   howtos.json          {slug: HowTo}        doc/howtos/**/*.md
   examples.json        {name: Example}      AppExamples/**/Documentation.md + code
+  passages.json        {id: SearchPassage}  bounded, semantic search units derived
+                                             from howtos + example docs/scripts
   corpus_meta.json     {zeiss_version, built_at, repo commits}
 
 Doc conventions handled (from actual python_api.md / resource_api.md inspection):
@@ -291,10 +293,33 @@ class Example:
 
 
 @dataclass
+class SearchPassage:
+    """A bounded search unit that points back to a full delivery record.
+
+    HowTo and Example deliberately remain whole-document containers so the
+    existing get_howto/get_example tools can still return an entire source.
+    SearchPassage is the separate, passage-sized representation used for BM25
+    and embeddings.
+    """
+
+    id: str
+    kind: str                         # howto | example_doc | example_script
+    parent_id: str                    # howto slug or example name
+    title: str
+    content: str
+    source_file: str = ""
+    section_path: list[str] = field(default_factory=list)
+    language: str = ""
+    ordinal: int = 0
+    api_mentions: list[str] = field(default_factory=list)
+
+
+@dataclass
 class InferredAttribute:
     chain: str                                      # gom.app.project.parts
     root: str                                       # gom.app
     description: str = ""                          # from surrounding prose / comments
+    description_confidence: str = ""               # "subject_matched" when leaf named
     access_patterns: list[str] = field(default_factory=list)  # e.g. ["['name']", "[index]"]
     mentioned_in_howtos: list[str] = field(default_factory=list)
     used_by_examples: list[str] = field(default_factory=list)
@@ -1109,6 +1134,422 @@ def collect_examples(ex_repo: Path) -> dict[str, Example]:
 
 
 # =============================================================================
+# Passage construction (search representation, separate from delivery records)
+# =============================================================================
+
+# bge-small has a 512-token input window.  We do not require its tokenizer at
+# corpus-build time, so this conservative lexical estimate leaves room for the
+# title/breadcrumb prefix added by the server.  Character-only limits are a bad
+# fit for Python, where punctuation and identifiers consume far more tokens
+# than natural-language prose.
+PASSAGE_TARGET_TOKENS = 320
+PASSAGE_MAX_TOKENS = 420
+
+_ROUGH_TOKEN_RE = re.compile(
+    r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+|_+|[^\w\s]"
+)
+_MD_HEADING_RE = re.compile(r"^(#{1,4})\s+(.+?)\s*$")
+_MD_FENCE_RE = re.compile(r"^\s*(```+|~~~+)(.*)$")
+
+
+def _rough_token_count(text: str) -> int:
+    """Conservative dependency-free estimate used only for chunk boundaries."""
+    if not text:
+        return 0
+    lexical = len(_ROUGH_TOKEN_RE.findall(text))
+    # The length floor catches long URLs/base64/string literals that the
+    # lexical expression would otherwise treat as a handful of giant tokens.
+    return max(lexical, (len(text) + 5) // 6)
+
+
+def _line_windows(text: str, max_tokens: int = PASSAGE_MAX_TOKENS,
+                  overlap_lines: int = 0) -> list[str]:
+    """Split oversized text on line boundaries with optional small overlap.
+
+    This is the final fallback after semantic Markdown/Python boundaries have
+    been tried.  A pathological single line is split by characters so the
+    hard token budget is still respected.
+    """
+    lines = text.splitlines(keepends=True)
+    if not lines:
+        return []
+
+    out: list[str] = []
+    start = 0
+    while start < len(lines):
+        end = start
+        buf: list[str] = []
+        while end < len(lines):
+            candidate = "".join(buf + [lines[end]])
+            if buf and _rough_token_count(candidate) > max_tokens:
+                break
+            if not buf and _rough_token_count(lines[end]) > max_tokens:
+                # Estimate a safe character width for the actual line, then
+                # shrink if the lexical estimator still says it is too large.
+                line = lines[end]
+                width = max(64, int(len(line) * max_tokens /
+                                    max(1, _rough_token_count(line))))
+                while width > 64 and _rough_token_count(line[:width]) > max_tokens:
+                    width = int(width * 0.85)
+                for pos in range(0, len(line), width):
+                    piece = line[pos:pos + width].strip("\n")
+                    if piece:
+                        out.append(piece)
+                end += 1
+                break
+            buf.append(lines[end])
+            end += 1
+
+        if buf:
+            chunk = "".join(buf).strip()
+            if chunk:
+                out.append(chunk)
+        if end <= start:
+            end = start + 1
+        if end >= len(lines):
+            break
+        next_start = end
+        if overlap_lines and buf:
+            next_start = max(start + 1, end - min(overlap_lines, len(buf) - 1))
+        start = next_start
+    return out
+
+
+def _markdown_blocks(text: str) -> list[str]:
+    """Return paragraph/list blocks while keeping fenced code blocks intact."""
+    lines = text.splitlines(keepends=True)
+    blocks: list[str] = []
+    buf: list[str] = []
+    i = 0
+
+    def flush() -> None:
+        block = "".join(buf).strip()
+        if block:
+            blocks.append(block)
+        buf.clear()
+
+    while i < len(lines):
+        fence = _MD_FENCE_RE.match(lines[i].rstrip("\n"))
+        if fence:
+            flush()
+            marker = fence.group(1)
+            code = [lines[i]]
+            i += 1
+            while i < len(lines):
+                code.append(lines[i])
+                if re.match(rf"^\s*{re.escape(marker[0])}{{{len(marker)},}}\s*$",
+                            lines[i].rstrip("\n")):
+                    i += 1
+                    break
+                i += 1
+            blocks.append("".join(code).strip())
+            continue
+
+        if not lines[i].strip():
+            flush()
+        else:
+            buf.append(lines[i])
+        i += 1
+    flush()
+    return blocks
+
+
+def _split_oversized_markdown_block(block: str) -> list[str]:
+    """Split one over-budget block, reopening Markdown fences when needed."""
+    if _rough_token_count(block) <= PASSAGE_MAX_TOKENS:
+        return [block]
+
+    lines = block.splitlines()
+    if lines:
+        opening = _MD_FENCE_RE.match(lines[0])
+        closing = bool(opening and len(lines) > 1 and re.match(
+            rf"^\s*{re.escape(opening.group(1)[0])}"
+            rf"{{{len(opening.group(1))},}}\s*$", lines[-1]
+        ))
+        if opening and closing:
+            opener = lines[0]
+            closer = opening.group(1)
+            inner = "\n".join(lines[1:-1])
+            wrapper_cost = _rough_token_count(opener + "\n" + closer) + 8
+            pieces = _line_windows(
+                inner,
+                max_tokens=max(80, PASSAGE_MAX_TOKENS - wrapper_cost),
+                overlap_lines=2,
+            )
+            return [f"{opener}\n{piece}\n{closer}" for piece in pieces]
+
+    return _line_windows(block, PASSAGE_MAX_TOKENS, overlap_lines=1)
+
+
+def _pack_markdown_section(text: str) -> list[str]:
+    """Pack coherent Markdown blocks into embedding-sized passages."""
+    expanded: list[str] = []
+    for block in _markdown_blocks(text):
+        expanded.extend(_split_oversized_markdown_block(block))
+
+    out: list[str] = []
+    current: list[str] = []
+    for block in expanded:
+        candidate = "\n\n".join(current + [block])
+        if current and _rough_token_count(candidate) > PASSAGE_TARGET_TOKENS:
+            out.append("\n\n".join(current).strip())
+            current = [block]
+        else:
+            current.append(block)
+    if current:
+        out.append("\n\n".join(current).strip())
+    return [p for p in out if p]
+
+
+def _markdown_sections(text: str, fallback_title: str
+                       ) -> list[tuple[list[str], str]]:
+    """Split Markdown at H2-H4 headings, ignoring headings inside fences."""
+    text = re.sub(r"^---\n.*?\n---\n", "", _normalize(text),
+                  count=1, flags=re.DOTALL)
+    lines = text.splitlines(keepends=True)
+    document_title = fallback_title
+    headings: dict[int, str] = {}
+    current_path = [document_title, "Overview"]
+    current: list[str] = []
+    sections: list[tuple[list[str], str]] = []
+    fence_marker = ""
+
+    def flush() -> None:
+        body = "".join(current).strip()
+        if body:
+            sections.append((list(current_path), body))
+        current.clear()
+
+    for line in lines:
+        fm = _MD_FENCE_RE.match(line.rstrip("\n"))
+        if fm:
+            marker = fm.group(1)
+            if not fence_marker:
+                fence_marker = marker
+            elif marker[0] == fence_marker[0] and len(marker) >= len(fence_marker):
+                fence_marker = ""
+            current.append(line)
+            continue
+
+        hm = None if fence_marker else _MD_HEADING_RE.match(line.rstrip("\n"))
+        if not hm:
+            current.append(line)
+            continue
+
+        level = len(hm.group(1))
+        heading = _strip_md_markers(hm.group(2)).strip()
+        if level == 1:
+            document_title = heading or fallback_title
+            if not current:
+                current_path = [document_title, "Overview"]
+            current.append(line)
+            continue
+
+        flush()
+        headings[level] = heading
+        for deeper in [n for n in headings if n > level]:
+            del headings[deeper]
+        current_path = [document_title] + [headings[n] for n in sorted(headings)]
+        current.append(line)
+
+    flush()
+    if not sections and text.strip():
+        sections.append(([document_title], text.strip()))
+    return sections
+
+
+def _python_node_start(node: ast.AST) -> int:
+    starts = [getattr(node, "lineno", 1)]
+    starts.extend(getattr(d, "lineno", starts[0])
+                  for d in getattr(node, "decorator_list", []))
+    return min(starts)
+
+
+def _python_node_chunks(source: str) -> list[tuple[str, str]]:
+    """Split a Python file by top-level definitions, then by class methods.
+
+    Small files remain whole.  Large functions are line-windowed only as a
+    last resort; class methods are preferred boundaries for large classes.
+    """
+    if _rough_token_count(source) <= PASSAGE_MAX_TOKENS:
+        return [("module", source.strip())]
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return [
+            (f"source part {i}", chunk)
+            for i, chunk in enumerate(
+                _line_windows(source, PASSAGE_MAX_TOKENS, overlap_lines=2), 1
+            )
+        ]
+
+    lines = source.splitlines(keepends=True)
+    named = [n for n in tree.body if isinstance(
+        n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+    )]
+    if not named:
+        return [
+            (f"module part {i}", chunk)
+            for i, chunk in enumerate(
+                _line_windows(source, PASSAGE_MAX_TOKENS, overlap_lines=2), 1
+            )
+        ]
+
+    raw: list[tuple[str, str]] = []
+    cursor = 0
+    for node in named:
+        start = _python_node_start(node) - 1
+        # Attach a directly preceding comment block to the definition, while
+        # leaving imports/globals as module-context passages.
+        lead = start
+        while lead > cursor and (not lines[lead - 1].strip()
+                                 or lines[lead - 1].lstrip().startswith("#")):
+            lead -= 1
+        setup = "".join(lines[cursor:lead]).strip()
+        if setup:
+            raw.append(("module context", setup))
+
+        end = getattr(node, "end_lineno", start + 1)
+        label = ("class " if isinstance(node, ast.ClassDef) else "function ") + node.name
+        node_text = "".join(lines[lead:end]).strip()
+
+        if (isinstance(node, ast.ClassDef)
+                and _rough_token_count(node_text) > PASSAGE_MAX_TOKENS):
+            methods = [n for n in node.body if isinstance(
+                n, (ast.FunctionDef, ast.AsyncFunctionDef)
+            )]
+            if methods:
+                first = _python_node_start(methods[0]) - 1
+                header = "".join(lines[lead:first]).strip()
+                if header:
+                    raw.append((label, header))
+                class_cursor = first
+                for method in methods:
+                    ms = _python_node_start(method) - 1
+                    me = getattr(method, "end_lineno", ms + 1)
+                    gap = "".join(lines[class_cursor:ms]).strip()
+                    if gap:
+                        raw.append((f"{node.name} class context", gap))
+                    raw.append((f"{node.name}.{method.name}",
+                                "".join(lines[ms:me]).strip()))
+                    class_cursor = me
+                class_tail = "".join(lines[class_cursor:end]).strip()
+                if class_tail:
+                    raw.append((f"{node.name} class tail", class_tail))
+            else:
+                raw.append((label, node_text))
+        else:
+            raw.append((label, node_text))
+        cursor = end
+
+    tail = "".join(lines[cursor:]).strip()
+    if tail:
+        raw.append(("module tail", tail))
+
+    out: list[tuple[str, str]] = []
+    for label, content in raw:
+        if _rough_token_count(content) <= PASSAGE_MAX_TOKENS:
+            out.append((label, content))
+            continue
+        pieces = _line_windows(content, PASSAGE_MAX_TOKENS, overlap_lines=2)
+        out.extend((f"{label} (part {i})", piece)
+                   for i, piece in enumerate(pieces, 1))
+    return [(label, content) for label, content in out if content]
+
+
+def _passage_api_mentions(content: str) -> list[str]:
+    mentions = re.findall(
+        r"\bgom\.(?:api|Resource|app|script|interactive)[\w\.]*", content
+    )
+    return sorted({m.rstrip(".,;:)]}'\"`") for m in mentions})
+
+
+def _passage_id_component(text: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9_.-]+", "_", text).strip("_") or "item"
+
+
+def build_passages(howtos: dict[str, HowTo], examples: dict[str, Example]
+                   ) -> dict[str, SearchPassage]:
+    """Build bounded Markdown/code passages without changing parent records."""
+    out: dict[str, SearchPassage] = {}
+
+    for slug, ht in sorted(howtos.items()):
+        ordinal = 0
+        for section_path, section in _markdown_sections(ht.content, ht.title):
+            fragments = _pack_markdown_section(section)
+            for part, content in enumerate(fragments, 1):
+                ordinal += 1
+                title = " > ".join(section_path)
+                if len(fragments) > 1:
+                    title += f" (part {part})"
+                pid = f"howto:{_passage_id_component(slug)}:{ordinal:03d}"
+                out[pid] = SearchPassage(
+                    id=pid, kind="howto", parent_id=slug, title=title,
+                    content=content, source_file=ht.source_file,
+                    section_path=section_path, language="markdown",
+                    ordinal=ordinal, api_mentions=_passage_api_mentions(content),
+                )
+
+    for name, ex in sorted(examples.items()):
+        safe_name = _passage_id_component(name)
+        doc_ordinal = 0
+        for section_path, section in _markdown_sections(ex.documentation, name):
+            fragments = _pack_markdown_section(section)
+            for part, content in enumerate(fragments, 1):
+                doc_ordinal += 1
+                section_title = " > ".join(section_path[1:] or ["Overview"])
+                title = f"{name} > {section_title}"
+                if len(fragments) > 1:
+                    title += f" (part {part})"
+                pid = f"example:{safe_name}:doc:{doc_ordinal:03d}"
+                out[pid] = SearchPassage(
+                    id=pid, kind="example_doc", parent_id=name, title=title,
+                    content=content,
+                    source_file=str(Path(ex.path) / "doc" / "Documentation.md"),
+                    section_path=section_path, language="markdown",
+                    ordinal=doc_ordinal,
+                    api_mentions=_passage_api_mentions(content),
+                )
+
+        script_ordinal = 0
+        for relpath, source in sorted(ex.scripts.items()):
+            for label, content in _python_node_chunks(_normalize(source)):
+                script_ordinal += 1
+                pid = f"example:{safe_name}:script:{script_ordinal:03d}"
+                out[pid] = SearchPassage(
+                    id=pid, kind="example_script", parent_id=name,
+                    title=f"{name} > {relpath} > {label}", content=content,
+                    source_file=str(Path(ex.path) / relpath),
+                    section_path=[name, relpath, label], language="python",
+                    ordinal=script_ordinal,
+                    api_mentions=_passage_api_mentions(content),
+                )
+    return out
+
+
+def passage_statistics(passages: dict[str, SearchPassage]) -> dict[str, dict]:
+    """Return deterministic size statistics for build logs and corpus_meta."""
+    groups: dict[str, list[int]] = {}
+    for passage in passages.values():
+        groups.setdefault(passage.kind, []).append(
+            _rough_token_count(passage.content)
+        )
+    stats: dict[str, dict] = {}
+    for kind, sizes in sorted(groups.items()):
+        ordered = sorted(sizes)
+        p95 = ordered[int(0.95 * (len(ordered) - 1))]
+        stats[kind] = {
+            "count": len(ordered),
+            "mean_estimated_tokens": round(sum(ordered) / len(ordered), 1),
+            "p95_estimated_tokens": p95,
+            "max_estimated_tokens": ordered[-1],
+            "over_budget": sum(n > PASSAGE_MAX_TOKENS for n in ordered),
+        }
+    return stats
+
+
+# =============================================================================
 # Usage-based inference (gom.script.* and gom.app.*)
 # =============================================================================
 #
@@ -1205,8 +1646,14 @@ def _prose_before_pos(text: str, pos: int) -> str:
         clean = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", p)   # strip links
         clean = re.sub(r"[*_`{}\[\]]+", "", clean).strip()
         if len(clean) > 20:
-            return clean[:300]
+            return _clean_description(clean)
     return ""
+
+
+def _heading_before_pos(text: str, pos: int) -> str:
+    """Return the nearest Markdown heading before pos, without markup."""
+    matches = list(re.finditer(r"^#{1,4}\s+(.+?)\s*$", text[:pos], re.MULTILINE))
+    return _strip_md_markers(matches[-1].group(1)) if matches else ""
 
 
 def _comment_lines_before(source: str, pos: int, max_lines: int = 5) -> str:
@@ -1230,12 +1677,61 @@ def _comment_lines_before(source: str, pos: int, max_lines: int = 5) -> str:
     return " ".join(reversed(comments))
 
 
-def _best_description(snippets: list[str]) -> str:
-    """Return the most informative non-empty snippet, preferring longer sentences."""
-    candidates = [s.strip() for s in snippets if s and len(s.strip()) > 10]
+def _clean_description(text: str, limit: int = 300) -> str:
+    """Normalize whitespace and truncate at a sentence/word boundary."""
+    clean = re.sub(r"\s+", " ", text or "").strip()
+    if len(clean) <= limit:
+        return clean
+    sentence_ends = [m.end() for m in re.finditer(r"[.!?](?:\s|$)", clean[:limit + 1])]
+    if sentence_ends and sentence_ends[-1] >= 40:
+        return clean[:sentence_ends[-1]].strip()
+    cut = clean.rfind(" ", 0, limit + 1)
+    return clean[:cut if cut >= 40 else limit].rstrip(" ,;:-")
+
+
+def _subject_tokens(subject: str) -> list[str]:
+    leaf = subject.rsplit(".", 1)[-1]
+    return [t.lower() for t in re.findall(
+        r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+", leaf.replace("_", " ")
+    ) if len(t) >= 3]
+
+
+def _description_matches_subject(subject: str, snippet: str) -> bool:
+    """Require inferred attribute prose to actually name its leaf property."""
+    tokens = _subject_tokens(subject)
+    if not tokens:
+        return False
+    words = set(re.findall(r"[a-z0-9]+", snippet.lower()))
+    # Multiword leaves such as actual_elements should match both words; for a
+    # single leaf, an exact word match is enough.  This intentionally prefers
+    # an empty description over confident but unrelated prose.
+    return all(t in words for t in tokens)
+
+
+def _best_description(snippets: list[str], subject: str = "") -> str:
+    """Choose concise, relevant evidence instead of the longest nearby text."""
+    candidates = []
+    seen: set[str] = set()
+    for raw in snippets:
+        clean = _clean_description(raw)
+        if len(clean) <= 10 or clean in seen:
+            continue
+        seen.add(clean)
+        candidates.append(clean)
     if not candidates:
         return ""
-    return sorted(candidates, key=len, reverse=True)[0][:300]
+
+    subject_tokens = _subject_tokens(subject)
+
+    def score(candidate: str) -> tuple[int, int, int, int]:
+        words = set(re.findall(r"[a-z0-9]+", candidate.lower()))
+        relevance = sum(t in words for t in subject_tokens)
+        non_step = not bool(re.match(r"^\d+[.)]\s+", candidate))
+        useful_length = 30 <= len(candidate) <= 220
+        # Once relevance/quality tie, prefer the more concise statement.
+        return relevance, int(non_step), int(useful_length), -len(candidate)
+
+    return max(candidates, key=score)
 
 
 def _script_module(fqn: str) -> str:
@@ -1254,14 +1750,65 @@ def _app_access_patterns(source: str, chain: str) -> list[str]:
         gom.app.project.parts[0]         -> ["[index]"]
         gom.app.project.parts            -> []          (bare reference)
     """
+    def close_bracket(start: int) -> int | None:
+        depth = 0
+        quote = ""
+        escaped = False
+        for i in range(start, len(source)):
+            c = source[i]
+            if quote:
+                if escaped:
+                    escaped = False
+                elif c == "\\":
+                    escaped = True
+                elif c == quote:
+                    quote = ""
+                continue
+            if c in "'\"":
+                quote = c
+            elif c == "[":
+                depth += 1
+            elif c == "]":
+                depth -= 1
+                if depth == 0:
+                    return i
+        return None
+
+    def normalize_subscript(raw: str) -> str:
+        value = raw.strip()
+        if re.fullmatch(r"[furbFURB]*(['\"]).*\1", value, re.DOTALL):
+            return "['name']"
+        if re.fullmatch(r"\d+", value):
+            return "[index]"
+        if re.fullmatch(r"(?:i|j|k|n|idx|index)", value, re.IGNORECASE):
+            return "[index]"
+        if re.fullmatch(r"[A-Za-z_]\w*", value):
+            return "[key]"
+        return "[expression]"
+
     patterns: set[str] = set()
-    escaped = re.escape(chain)
-    for m in re.finditer(escaped + r"((?:\[[^\]]*\]|\.\w+)+)", source):
-        suffix = m.group(1)
-        suffix = re.sub(r'\[["\']([^"\']*)["\'] *\]', "['name']", suffix)
-        suffix = re.sub(r"\[\d+\]", "[index]", suffix)
-        if suffix:
-            patterns.add(suffix[:80])
+    for m in re.finditer(re.escape(chain) + r"(?=[^.\w]|$)", source):
+        i = m.end()
+        pieces: list[str] = []
+        while i < len(source):
+            if source[i] == ".":
+                attr = re.match(r"\.([A-Za-z_]\w*)", source[i:])
+                if not attr:
+                    break
+                pieces.append(attr.group(0))
+                i += len(attr.group(0))
+                continue
+            if source[i] == "[":
+                end = close_bracket(i)
+                if end is None:
+                    pieces = []  # never emit syntactically broken patterns
+                    break
+                pieces.append(normalize_subscript(source[i + 1:end]))
+                i = end + 1
+                continue
+            break
+        if pieces:
+            patterns.add("".join(pieces))
     return sorted(patterns)
 
 
@@ -1322,6 +1869,7 @@ def _mine_source(
 
         # ── gom.app.* attribute chains ────────────────────────────────────────
         seen_chains: set[str] = set()
+        chain_descriptions: dict[str, list[str]] = {}
         for am in _APP_ATTR_RE.finditer(code):
             chain = am.group(1).rstrip(".")
             # Require at least gom.app.<one_more> — bare `gom.app` is not useful.
@@ -1329,8 +1877,18 @@ def _mine_source(
                 continue
             seen_chains.add(chain)
 
+            line_start = code.rfind("\n", 0, am.start()) + 1
+            candidates = [_comment_lines_before(code, line_start)]
+            if is_markdown:
+                candidates.extend([
+                    _heading_before_pos(source, fence_start),
+                    _prose_before_pos(source, fence_start),
+                ])
+            for desc in candidates:
+                if desc and _description_matches_subject(chain, desc):
+                    chain_descriptions.setdefault(chain, []).append(desc)
+
         for chain in seen_chains:
-            prose = _prose_before_pos(source, fence_start) if is_markdown else ""
             patterns = _app_access_patterns(code, chain)
 
             aev = attr_ev.setdefault(chain, {
@@ -1341,8 +1899,7 @@ def _mine_source(
                 "howto_slugs": set(),
                 "example_names": set(),
             })
-            if prose:
-                aev["descriptions"].append(prose)
+            aev["descriptions"].extend(chain_descriptions.get(chain, []))
             aev["patterns"].update(patterns)
             if source_kind == "howto":
                 aev["howto_slugs"].add(source_label)
@@ -1419,7 +1976,7 @@ def collect_inferred_api(
             kind="function",
             signature=f"{fqn}({sig_args})",
             params=[{"name": k, "type": "", "desc": ""} for k in kwargs],
-            description=_best_description(ev["descriptions"]),
+            description=_best_description(ev["descriptions"], fqn),
             extended_description=(
                 "Inferred from usage in howtos/examples — no formal API docs exist. "
                 "Signature shows observed keyword arguments only; positional-only "
@@ -1434,10 +1991,12 @@ def collect_inferred_api(
     # --- Synthesise InferredAttribute records ---
     attributes: dict[str, InferredAttribute] = {}
     for chain, aev in sorted(attr_ev.items()):
+        description = _best_description(aev["descriptions"], chain)
         attributes[chain] = InferredAttribute(
             chain=chain,
             root=aev["root"],
-            description=_best_description(aev["descriptions"]),
+            description=description,
+            description_confidence="subject_matched" if description else "",
             access_patterns=sorted(aev["patterns"]),
             mentioned_in_howtos=sorted(aev["howto_slugs"]),
             used_by_examples=sorted(aev["example_names"]),
@@ -1756,7 +2315,7 @@ def main() -> int:
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
 
-    print(f"[0/5] Preparing repos for ZEISS INSPECT {args.zeiss_version}", file=sys.stderr)
+    print(f"[0/6] Preparing repos for ZEISS INSPECT {args.zeiss_version}", file=sys.stderr)
     api_repo, ex_repo, meta = prepare_repos(
         workspace=args.workspace,
         zeiss_version=args.zeiss_version,
@@ -1770,7 +2329,7 @@ def main() -> int:
     print(f"      ex  repo: {ex_repo} @ {meta['ex_repo']['branch']} "
           f"({meta['ex_repo']['commit']})", file=sys.stderr)
 
-    print(f"[1/5] API docs <- {api_repo}/doc/python_api", file=sys.stderr)
+    print(f"[1/6] API docs <- {api_repo}/doc/python_api", file=sys.stderr)
     api, classes, modules = collect_api(api_repo)
     brief_ok = sum(1 for f in api.values() if f.description)
     print(f"      {len(api)} functions / {len(classes)} classes / {len(modules)} modules",
@@ -1778,15 +2337,15 @@ def main() -> int:
     print(f"      {brief_ok}/{len(api)} functions have a description",
           file=sys.stderr)
 
-    print(f"[2/5] How-tos <- {api_repo}/doc/howtos", file=sys.stderr)
+    print(f"[2/6] How-tos <- {api_repo}/doc/howtos", file=sys.stderr)
     howtos = collect_howtos(api_repo)
     print(f"      {len(howtos)} guides parsed", file=sys.stderr)
 
-    print(f"[3/5] Examples <- {ex_repo}/AppExamples", file=sys.stderr)
+    print(f"[3/6] Examples <- {ex_repo}/AppExamples", file=sys.stderr)
     examples = collect_examples(ex_repo)
     print(f"      {len(examples)} examples parsed", file=sys.stderr)
 
-    print(f"[4/5] Inferred API (gom.script.* + gom.app.*) <- howtos + examples",
+    print(f"[4/6] Inferred API (gom.script.* + gom.app.*) <- howtos + examples",
           file=sys.stderr)
     inferred_fns, attributes = collect_inferred_api(api_repo, ex_repo)
     # Merge inferred stubs — formal docs always win; only add genuinely new entries.
@@ -1807,8 +2366,27 @@ def main() -> int:
     print(f"      {len(attributes)} gom.app.* attribute chains recorded",
           file=sys.stderr)
 
-    print("[5/5] Cross-linking", file=sys.stderr)
+    print("[5/6] Cross-linking", file=sys.stderr)
     crosslink(api, classes, modules, examples, howtos)
+
+    print("[6/6] Building bounded search passages", file=sys.stderr)
+    passages = build_passages(howtos, examples)
+    passage_stats = passage_statistics(passages)
+    print(f"      {len(passages)} passages", file=sys.stderr)
+    for kind, stats in passage_stats.items():
+        print(
+            f"      {kind}: n={stats['count']}, "
+            f"mean~{stats['mean_estimated_tokens']} tok, "
+            f"p95~{stats['p95_estimated_tokens']}, "
+            f"max~{stats['max_estimated_tokens']}, "
+            f"over-budget={stats['over_budget']}",
+            file=sys.stderr,
+        )
+    meta["passages"] = {
+        "target_estimated_tokens": PASSAGE_TARGET_TOKENS,
+        "max_estimated_tokens": PASSAGE_MAX_TOKENS,
+        "statistics": passage_stats,
+    }
 
     linked_ex = sum(1 for e in examples.values() if any(
         c in api or c in classes or c in modules or
@@ -1863,6 +2441,8 @@ def main() -> int:
           {k: asdict(v) for k, v in sorted(howtos.items())})
     _dump(args.out / "examples.json",
           {k: asdict(v) for k, v in sorted(examples.items())})
+    _dump(args.out / "passages.json",
+          {k: asdict(v) for k, v in sorted(passages.items())})
     _dump(args.out / "attributes.json",
           {k: asdict(v) for k, v in sorted(attributes.items())})
     _dump(args.out / "corpus_meta.json", meta)
